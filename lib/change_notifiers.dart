@@ -22,6 +22,7 @@ import 'package:gitjournal/settings/git_config.dart';
 import 'package:gitjournal/settings/markdown_renderer_config.dart';
 import 'package:gitjournal/settings/settings.dart';
 import 'package:gitjournal/settings/storage_config.dart';
+import 'package:gitjournal/widgets/widget_updater.dart';
 
 class GitJournalChangeNotifiers extends StatelessWidget {
   final RepositoryManager repoManager;
@@ -76,11 +77,13 @@ class GitJournalChangeNotifiers extends StatelessWidget {
         ChangeNotifierProvider<Settings>.value(value: repo.settings),
         ChangeNotifierProvider<NotesFolderConfig>.value(value: folderConfig),
       ],
-      child: _buildNoteMaterializedViews(
-        repo,
-        ChangeNotifierProvider<NotesFolderFS>.value(
-          value: repo.rootFolder,
-          child: child,
+      child: WidgetUpdater(
+        child: _buildNoteMaterializedViews(
+          repo,
+          ChangeNotifierProvider<NotesFolderFS>.value(
+            value: repo.rootFolder,
+            child: child,
+          ),
         ),
       ),
     );

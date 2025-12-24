@@ -55,6 +55,7 @@ dependencies:
   google_api_availability: ^5.0.1
   google_fonts: ^2.1.0
   hive: ^2.2.3
+  home_widget: ^0.7.0
   http: ^0.13.1
   icloud_documents_path:
     git: https://github.com/GitJournal/icloud_documents_path.git

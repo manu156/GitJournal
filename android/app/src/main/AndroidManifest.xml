@@ -82,6 +82,19 @@ SPDX-License-Identifier: Apache-2.0
 
         <meta-data android:name="com.sec.android.support.multiwindow" android:value="true" />
         <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true"/>
+
+        <receiver android:name=".GitJournalWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
+
+        <service android:name=".GitJournalRemoteViewsService"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
     </application>
 
     <queries>

@@ -172,7 +172,28 @@ class AppRouter {
       );
     }
 
-    assert(false, "Not found named route in screenForRoute");
-    return null;
+    if (route.startsWith("/note")) {
+      Log.i("Widget Route - $route");
+      var uri = Uri.parse(route);
+      var notePath = uri.queryParameters['path'];
+      Log.i("Widget Note Path - $notePath");
+
+      if (notePath != null) {
+        if (notePath.startsWith('/')) {
+          notePath = notePath.substring(1);
+        }
+
+        var note = repository.rootFolder.getNoteWithSpec(notePath);
+        if (note != null) {
+          Log.i("Opening note from widget: ${note.filePath}");
+          return NoteEditor.fromNote(note, note.parent);
+        } else {
+          Log.e("Note not found for path: $notePath");
+        }
+      }
+    }
+
+    Log.e("Not found named route in screenForRoute. Route: $route");
+    return HomeScreen();
   }
 }

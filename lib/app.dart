@@ -11,6 +11,8 @@ import 'package:gitjournal/analytics/analytics.dart';
 import 'package:gitjournal/analytics/route_observer.dart';
 import 'package:gitjournal/app_router.dart';
 import 'package:gitjournal/change_notifiers.dart';
+import 'package:gitjournal/editors/note_editor.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:gitjournal/core/folder/notes_folder_config.dart';
 import 'package:gitjournal/core/link.dart';
 import 'package:gitjournal/core/views/note_links_view.dart';
@@ -159,6 +161,37 @@ class JournalAppState extends State<JournalApp> {
     });
 
     _initShareSubscriptions();
+
+    // Widget Handling
+    HomeWidget.setAppGroupId('group.io.gitjournal.gitjournal');
+    HomeWidget.widgetClicked.listen(_launchedFromWidget);
+    HomeWidget.initiallyLaunchedFromHomeWidget().then(_launchedFromWidget);
+  }
+
+  void _launchedFromWidget(Uri? uri) {
+    if (uri == null) return;
+    if (uri.scheme == 'gitjournal' && uri.path == '/note') {
+      var notePath = uri.queryParameters['path'];
+      if (notePath != null) {
+        _openNote(notePath);
+      }
+    }
+  }
+
+  void _openNote(String path) {
+    try {
+      var repo = widget.repoManager.currentRepo;
+      if (repo == null) return;
+
+      var note = repo.rootFolder.getNoteWithSpec(path);
+      if (note != null) {
+        _navigatorKey.currentState!.push(MaterialPageRoute(
+          builder: (context) => NoteEditor.fromNote(note, note.parent),
+        ));
+      }
+    } catch (e) {
+      Log.e("Failed to open note from widget: $path", ex: e);
+    }
   }
 
   void _afterBuild(BuildContext context) {
