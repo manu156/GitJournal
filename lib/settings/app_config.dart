@@ -23,9 +23,11 @@ class AppConfig extends ChangeNotifier {
 
   int version = 0;
 
-  bool proMode = false;
+  bool get proMode => true;
+  set proMode(bool val) {}
 
-  var validateProMode = true;
+  bool get validateProMode => false;
+  set validateProMode(bool val) {}
 
   var debugLogLevel = 'v';
 
@@ -41,8 +43,8 @@ class AppConfig extends ChangeNotifier {
         pref.getBool("collectCrashReports") ?? collectCrashReports;
 
     version = pref.getInt("appSettingsVersion") ?? version;
-    proMode = pref.getBool("proMode") ?? proMode;
-    validateProMode = pref.getBool("validateProMode") ?? validateProMode;
+    proMode = true; // pref.getBool("proMode") ?? proMode;
+    validateProMode = false; // pref.getBool("validateProMode") ?? validateProMode;
 
     debugLogLevel = pref.getString("debugLogLevel") ?? debugLogLevel;
     experimentalSubfolders =
