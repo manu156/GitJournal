@@ -9,7 +9,9 @@ plugins {
 }
 
 def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('secrets/key.properties')
+def keystorePropertiesFile =
+        file("${System.getProperty('user.home')}/Documents/keystore/keystore.properties")
+
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
