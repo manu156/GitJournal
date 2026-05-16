@@ -30,8 +30,11 @@ import 'package:gitjournal/widgets/note_delete_dialog.dart';
 import 'package:gitjournal/widgets/note_search_delegate.dart';
 import 'package:gitjournal/widgets/sorting_mode_selection_dialog.dart';
 import 'package:gitjournal/widgets/sync_button.dart';
+import 'package:gitjournal/sync_attempt.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import '../widgets/git_conflict_resolution_sheet.dart';
 
 enum DropDownChoices {
   SortingOptions,
@@ -224,6 +227,8 @@ class _FolderViewState extends State<FolderView> {
           ),
           automaticallyImplyLeading: false,
         ),
+        if (context.watch<GitJournalRepo>().syncStatus == SyncStatus.Conflict)
+          _ConflictBanner(),
         if (havePinnedNotes)
           _SliverHeader(text: context.loc.widgetsFolderViewPinned),
         if (havePinnedNotes) pinnedFolderView,
@@ -498,5 +503,63 @@ Future<void> syncRepo(BuildContext context) async {
     await container.syncNotes();
   } catch (e) {
     showErrorSnackbar(context, e);
+  }
+}
+
+class _ConflictBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.errorContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: cs.onErrorContainer),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Merge Conflict Detected',
+                    style: theme.textTheme.titleSmall!.copyWith(
+                      color: cs.onErrorContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Some notes have conflicting changes from another device. Resolve them to continue syncing.',
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: cs.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => showGitConflictResolution(context),
+                icon: const Icon(Icons.auto_fix_high, size: 18),
+                label: const Text('Resolve Conflicts'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: cs.error,
+                  foregroundColor: cs.onError,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

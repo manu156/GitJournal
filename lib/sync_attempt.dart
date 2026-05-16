@@ -13,6 +13,7 @@ enum SyncStatus {
   Merging,
   Pushing,
   Error,
+  Conflict,
 }
 
 class SyncAttemptPart {

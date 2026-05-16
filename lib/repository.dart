@@ -10,8 +10,10 @@ import 'package:archive/archive_io.dart';
 import 'package:collection/collection.dart';
 import 'package:dart_git/config.dart';
 import 'package:dart_git/dart_git.dart';
+import 'package:dart_git/diff_commit.dart';
 import 'package:dart_git/exceptions.dart';
 import 'package:dart_git/plumbing/git_hash.dart';
+import 'package:dart_git/plumbing/objects/blob.dart';
 import 'package:dart_git/plumbing/reference.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -80,6 +82,7 @@ class GitJournalRepo with ChangeNotifier {
       syncAttempts.isNotEmpty ? syncAttempts.first.status : SyncStatus.Unknown;
 
   int numChanges = 0;
+  List<ConflictInfo> conflicts = [];
 
   bool remoteGitRepoConfigured = false;
   late bool fileStorageCacheReady;
@@ -322,6 +325,33 @@ class GitJournalRepo with ChangeNotifier {
     return !storageConfig.storeInternally;
   }
 
+  Future<void> resolveConflict(ConflictInfo conflict, bool keepLocal) async {
+    await _gitOpLock.synchronized(() async {
+      final repo = GitRepository.load(repoPath);
+      final hash = keepLocal ? conflict.localHash : conflict.remoteHash;
+      if (hash == null) {
+        repo.close();
+        return;
+      }
+
+      // To resolve, we basically write the chosen content to the file
+      final obj = repo.objStorage.read(GitHash(hash));
+      if (obj is GitBlob) {
+        final filePath = p.join(repoPath, conflict.path);
+        io.File(filePath).writeAsBytesSync(obj.blobData);
+      }
+
+      repo.close();
+
+      conflicts.removeWhere((c) => c.path == conflict.path);
+      if (conflicts.isEmpty) {
+        // All resolved! 
+        syncNotes(doNotThrow: true);
+      }
+      notifyListeners();
+    });
+  }
+
   Future<void> syncNotes({bool doNotThrow = false}) async {
     // This is extremely slow with dart-git, can take over a second!
     if (_shouldCheckForChanges()) {
@@ -358,10 +388,22 @@ class GitJournalRepo with ChangeNotifier {
         try {
           await _gitRepo.merge();
         } catch (ex) {
+          // Detect conflict
+          if (ex.toString().contains('conflict') || ex is GitNotImplemented) {
+            final foundConflicts = await compute(_findConflicts, {
+              'repoPath': repoPath,
+            });
+            if (foundConflicts.isNotEmpty) {
+              conflicts = foundConflicts;
+              attempt.add(SyncStatus.Conflict);
+              notifyListeners();
+              return;
+            }
+          }
+
           // When there is nothing to merge into
           if (ex is! GitRefNotFound) {
             rethrow;
-            // FIXME: Do not throw this exception, try to solve it somehow!!
           }
         }
       });
@@ -935,4 +977,62 @@ Future<void> _commitUnTrackedChanges(
   }
 
   Log.i('_commitUntracked: ${timer.elapsed}');
+}
+
+class ConflictInfo {
+  final String path;
+  final String? localHash;
+  final String? remoteHash;
+
+  ConflictInfo({required this.path, this.localHash, this.remoteHash});
+}
+
+List<ConflictInfo> _findConflicts(Map<String, dynamic> params) {
+  final repoPath = params['repoPath'] as String;
+  try {
+    final repo = GitRepository.load(repoPath);
+    final head = repo.headCommit();
+    
+    // Find remote tracking branch
+    final branch = repo.currentBranch();
+    final brConfig = repo.config.branch(branch);
+    if (brConfig == null || brConfig.remote == null || brConfig.merge == null) {
+      return [];
+    }
+    final remoteRef = ReferenceName.remote(brConfig.remote!, brConfig.merge!.branchName()!);
+    final remoteCommitHash = repo.resolveReferenceName(remoteRef)?.hash;
+    if (remoteCommitHash == null) return [];
+    final remoteCommit = repo.objStorage.readCommit(remoteCommitHash);
+
+    // Find Merge Base
+    final bases = repo.mergeBase(head, remoteCommit);
+    if (bases.isEmpty) return [];
+    final baseCommit = bases.first;
+
+    // Diff (Base vs Head) and (Base vs Remote)
+    final localChanges = diffCommits(fromCommit: baseCommit, toCommit: head, objStore: repo.objStorage);
+    final remoteChanges = diffCommits(fromCommit: baseCommit, toCommit: remoteCommit, objStore: repo.objStorage);
+
+    final localModified = localChanges.merged().map((c) => c.path).toSet();
+    final remoteModified = remoteChanges.merged().map((c) => c.path).toSet();
+
+    // Intersection = Conflicts
+    final conflictingPaths = localModified.intersection(remoteModified);
+    final results = <ConflictInfo>[];
+
+    for (final path in conflictingPaths) {
+      final lChange = localChanges.merged().firstWhere((c) => c.path == path);
+      final rChange = remoteChanges.merged().firstWhere((c) => c.path == path);
+      results.add(ConflictInfo(
+        path: path,
+        localHash: lChange.to?.hash.toString(),
+        remoteHash: rChange.to?.hash.toString(),
+      ));
+    }
+
+    repo.close();
+    return results;
+  } catch (e) {
+    return [];
+  }
 }
