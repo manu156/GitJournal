@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:gitjournal/l10n.dart';
 import 'package:gitjournal/settings/settings.dart';
-import 'package:gitjournal/settings/settings_bottom_menu_bar.dart';
 import 'package:gitjournal/settings/settings_display_images.dart';
 import 'package:gitjournal/settings/settings_misc.dart';
 import 'package:gitjournal/settings/settings_screen.dart';
@@ -98,20 +97,6 @@ class SettingsUIScreen extends StatelessWidget {
               var s = SettingsHomeScreen.fromPublicString(context, publicStr);
               settings.homeScreen = s;
               settings.save();
-            },
-          ),
-        ),
-        ProOverlay(
-          child: ListTile(
-            title: Text(context.loc.settingsBottomMenuBarTitle),
-            subtitle: Text(context.loc.settingsBottomMenuBarSubtitle),
-            onTap: () {
-              var route = MaterialPageRoute(
-                builder: (context) => BottomMenuBarSettings(),
-                settings:
-                    const RouteSettings(name: BottomMenuBarSettings.routePath),
-              );
-              Navigator.push(context, route);
             },
           ),
         ),

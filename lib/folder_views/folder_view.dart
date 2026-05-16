@@ -26,7 +26,6 @@ import 'package:gitjournal/utils/utils.dart';
 import 'package:gitjournal/widgets/app_bar_menu_button.dart';
 import 'package:gitjournal/widgets/app_drawer.dart';
 import 'package:gitjournal/widgets/folder_selection_dialog.dart';
-import 'package:gitjournal/widgets/new_note_nav_bar.dart';
 import 'package:gitjournal/widgets/note_delete_dialog.dart';
 import 'package:gitjournal/widgets/note_search_delegate.dart';
 import 'package:gitjournal/widgets/sorting_mode_selection_dialog.dart';
@@ -154,15 +153,13 @@ class _FolderViewState extends State<FolderView> {
     }
 
     var settings = context.watch<Settings>();
-    final showButtomMenuBar = settings.bottomMenuBar;
+    final showButtomMenuBar = false;
 
     // So the FAB doesn't hide parts of the last entry
-    if (!showButtomMenuBar) {
-      folderView = SliverPadding(
-        sliver: folderView,
-        padding: const EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 48.0),
-      );
-    }
+    folderView = SliverPadding(
+      sliver: folderView,
+      padding: const EdgeInsets.fromLTRB(0.0, 0.0, 0.0, 80.0),
+    );
 
     var backButton = IconButton(
       icon: const Icon(Icons.arrow_back),
@@ -285,18 +282,11 @@ class _FolderViewState extends State<FolderView> {
       child: const Icon(Icons.add),
     );
 
-    var settings = context.watch<Settings>();
-    final showButtomMenuBar = settings.bottomMenuBar;
-
     return Scaffold(
       body: Builder(builder: _buildBody),
       extendBody: true,
       drawer: AppDrawer(),
       floatingActionButton: createButton,
-      floatingActionButtonLocation:
-          showButtomMenuBar ? FloatingActionButtonLocation.endDocked : null,
-      bottomNavigationBar:
-          showButtomMenuBar ? NewNoteNavBar(onPressed: _newPost) : null,
     );
   }
 
