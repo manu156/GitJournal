@@ -266,24 +266,44 @@ class _AppDrawerState extends State<AppDrawer>
     bool selected = false,
   }) {
     var theme = Theme.of(context);
-    var listTileTheme = ListTileTheme.of(context);
-    var textStyle = theme.textTheme.bodyLarge!.copyWith(
-      color: selected ? theme.colorScheme.secondary : listTileTheme.textColor,
-    );
+    var colorScheme = theme.colorScheme;
 
     var iconW = !isFontAwesome
-        ? Icon(icon, color: textStyle.color)
-        : FaIcon(icon, color: textStyle.color);
+        ? Icon(
+            icon,
+            color: selected
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurfaceVariant,
+          )
+        : FaIcon(
+            icon,
+            color: selected
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurfaceVariant,
+            size: 20,
+          );
 
-    var tile = ListTile(
-      leading: iconW,
-      title: Text(title, style: textStyle),
-      onTap: onTap,
-      selected: selected,
-    );
-    return Container(
-      color: selected ? theme.highlightColor : theme.scaffoldBackgroundColor,
-      child: tile,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: ListTile(
+        leading: iconW,
+        title: Text(
+          title,
+          style: theme.textTheme.labelLarge!.copyWith(
+            color: selected
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        onTap: onTap,
+        selected: selected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        tileColor: selected ? colorScheme.secondaryContainer : null,
+        selectedTileColor: colorScheme.secondaryContainer,
+      ),
     );
   }
 }
@@ -299,42 +319,57 @@ class RepoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var theme = Theme.of(context);
-    var listTileTheme = ListTileTheme.of(context);
+    var colorScheme = theme.colorScheme;
     var repoManager = context.watch<RepositoryManager>();
 
     var selected = repoManager.currentId == id;
-    var textStyle = theme.textTheme.bodyLarge!.copyWith(
-      color: selected ? theme.colorScheme.secondary : listTileTheme.textColor,
+
+    var icon = FaIcon(
+      FontAwesomeIcons.book,
+      color: selected
+          ? colorScheme.onSecondaryContainer
+          : colorScheme.onSurfaceVariant,
+      size: 20,
     );
 
-    var icon = FaIcon(FontAwesomeIcons.book, color: textStyle.color);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: ListTile(
+        leading: icon,
+        title: Text(
+          repoManager.repoFolderName(id),
+          style: theme.textTheme.labelLarge!.copyWith(
+            color: selected
+                ? colorScheme.onSecondaryContainer
+                : colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        onTap: () async {
+          Navigator.pop(context);
 
-    var tile = ListTile(
-      leading: icon,
-      title: Text(repoManager.repoFolderName(id), style: textStyle),
-      onTap: () async {
-        Navigator.pop(context);
+          try {
+            await repoManager.setCurrentRepo(id);
+          } catch (ex) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              ErrorScreen.routePath,
+              (r) => true,
+            );
+            return;
+          }
 
-        try {
-          await repoManager.setCurrentRepo(id);
-        } catch (ex) {
           Navigator.of(context).pushNamedAndRemoveUntil(
-            ErrorScreen.routePath,
+            HomeScreen.routePath,
             (r) => true,
           );
-          return;
-        }
-
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          HomeScreen.routePath,
-          (r) => true,
-        );
-      },
-    );
-
-    return Container(
-      color: selected ? theme.highlightColor : theme.scaffoldBackgroundColor,
-      child: tile,
+        },
+        selected: selected,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        tileColor: selected ? colorScheme.secondaryContainer : null,
+        selectedTileColor: colorScheme.secondaryContainer,
+      ),
     );
   }
 }

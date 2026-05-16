@@ -18,7 +18,6 @@ import 'package:gitjournal/editors/common_types.dart';
 import 'package:gitjournal/editors/note_editor.dart';
 import 'package:gitjournal/folder_views/common.dart';
 import 'package:gitjournal/folder_views/folder_view_configuration_dialog.dart';
-import 'package:gitjournal/folder_views/folder_view_selection_dialog.dart';
 import 'package:gitjournal/folder_views/standard_view.dart';
 import 'package:gitjournal/l10n.dart';
 import 'package:gitjournal/repository.dart';
@@ -37,7 +36,6 @@ import 'package:provider/provider.dart';
 
 enum DropDownChoices {
   SortingOptions,
-  ViewOptions,
 }
 
 enum NoteSelectedExtraActions {
@@ -60,7 +58,7 @@ class FolderView extends StatefulWidget {
 class _FolderViewState extends State<FolderView> {
   SortedNotesFolder? _sortedNotesFolder;
   SortedNotesFolder? _pinnedNotesFolder;
-  FolderViewType _viewType = FolderViewType.Standard;
+  FolderViewType _viewType = FolderViewType.Card;
 
   var _headerType = StandardViewHeader.TitleGenerated;
   bool _showSummary = true;
@@ -76,7 +74,7 @@ class _FolderViewState extends State<FolderView> {
   }
 
   Future<void> _init() async {
-    _viewType = widget.notesFolder.config.defaultView.toFolderViewType();
+    _viewType = FolderViewType.Card;
     _showSummary = widget.notesFolder.config.showNoteSummary;
     _headerType = widget.notesFolder.config.viewHeader;
 
@@ -174,45 +172,76 @@ class _FolderViewState extends State<FolderView> {
     var havePinnedNotes =
         _pinnedNotesFolder != null ? !_pinnedNotesFolder!.isEmpty : false;
 
-    return NestedScrollView(
-      headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
-        return [
-          SliverAppBar(
-            title: Text(title),
-            leading: inSelectionMode ? backButton : GJAppBarMenuButton(),
-            actions: inSelectionMode
-                ? _buildInSelectionNoteActions()
-                : _buildNoteActions(),
-            forceElevated: true,
+    var view = CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          floating: false,
+          snap: false,
+          pinned: true,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          toolbarHeight: 64,
+          titleSpacing: 16,
+          title: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                if (inSelectionMode)
+                  backButton
+                else
+                  GJAppBarMenuButton(),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      logEvent(Event.SearchButtonPressed);
+                      showSearch(
+                        context: context,
+                        delegate: NoteSearchDelegate(
+                          _sortedNotesFolder!.notes,
+                          _viewType,
+                        ),
+                      );
+                    },
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ),
+                if (inSelectionMode)
+                  ..._buildInSelectionNoteActions()
+                else ...[
+                  SyncButton(),
+                  _buildExtraActions(),
+                ],
+                const SizedBox(width: 8),
+              ],
+            ),
           ),
-        ];
-      },
-      floatHeaderSlivers: true,
-      // Stupid scrollbar has a top padding otherwise
-      // - from : https://stackoverflow.com/questions/64404873/remove-the-top-padding-from-scrollbar-when-wrapping-listview
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Scrollbar(
-          child: Builder(builder: (context) {
-            var view = CustomScrollView(slivers: [
-              if (havePinnedNotes)
-                _SliverHeader(text: context.loc.widgetsFolderViewPinned),
-              if (havePinnedNotes) pinnedFolderView,
-              if (havePinnedNotes)
-                _SliverHeader(text: context.loc.widgetsFolderViewOthers),
-              folderView,
-            ]);
-            if (settings.remoteSyncFrequency == RemoteSyncFrequency.Manual) {
-              return view;
-            }
-            return RefreshIndicator(
-              onRefresh: () => syncRepo(context),
-              child: view,
-            );
-          }),
+          automaticallyImplyLeading: false,
         ),
-      ),
+        if (havePinnedNotes)
+          _SliverHeader(text: context.loc.widgetsFolderViewPinned),
+        if (havePinnedNotes) pinnedFolderView,
+        if (havePinnedNotes)
+          _SliverHeader(text: context.loc.widgetsFolderViewOthers),
+        folderView,
+      ],
+    );
+
+    if (settings.remoteSyncFrequency == RemoteSyncFrequency.Manual) {
+      return Scrollbar(child: view);
+    }
+    return RefreshIndicator(
+      onRefresh: () => syncRepo(context),
+      child: Scrollbar(child: view),
     );
   }
 
@@ -356,83 +385,15 @@ class _FolderViewState extends State<FolderView> {
     }
   }
 
-  Future<void> _configureViewButtonPressed() async {
-    await showDialog<SortingMode>(
-      context: context,
-      builder: _viewDialog,
-    );
 
-    setState(() {});
-  }
-
-  Widget _viewDialog(BuildContext context) {
-    void headerTypeChanged(StandardViewHeader? newHeader) {
-      if (newHeader == null) {
-        return;
-      }
-      setState(() {
-        _headerType = newHeader;
-      });
-
-      var folderConfig = _sortedNotesFolder!.config;
-      folderConfig.viewHeader = _headerType;
-      folderConfig.save();
-    }
-
-    void summaryChanged(bool newVal) {
-      setState(() {
-        _showSummary = newVal;
-      });
-
-      var folderConfig = _sortedNotesFolder!.config;
-      folderConfig.showNoteSummary = newVal;
-      folderConfig.save();
-    }
-
-    return FolderViewConfigurationDialog(
-      headerType: _headerType,
-      showSummary: _showSummary,
-      onHeaderTypeChanged: headerTypeChanged,
-      onShowSummaryChanged: summaryChanged,
-    );
-  }
-
-  Future<void> _folderViewChooserSelected() async {
-    var newViewType = await showDialog<FolderViewType>(
-      context: context,
-      builder: (BuildContext context) {
-        return FolderViewSelectionDialog(
-          viewType: _viewType,
-          onViewChange: (vt) => Navigator.of(context).pop(vt),
-        );
-      },
-    );
-
-    if (newViewType != null) {
-      setState(() {
-        _viewType = newViewType;
-      });
-
-      var folderConfig = widget.notesFolder.config;
-      folderConfig.defaultView =
-          SettingsFolderViewType.fromFolderViewType(newViewType);
-      folderConfig.save();
-    }
-  }
-
-  List<Widget> _buildNoteActions() {
-    final repo = context.watch<GitJournalRepo>();
-
-    var extraActions = PopupMenuButton<DropDownChoices>(
+  Widget _buildExtraActions() {
+    return PopupMenuButton<DropDownChoices>(
       key: const ValueKey("PopupMenu"),
+      icon: const Icon(Icons.more_vert),
       onSelected: (DropDownChoices choice) {
         switch (choice) {
           case DropDownChoices.SortingOptions:
             _sortButtonPressed();
-            break;
-
-          case DropDownChoices.ViewOptions:
-            _configureViewButtonPressed();
             break;
         }
       },
@@ -442,37 +403,8 @@ class _FolderViewState extends State<FolderView> {
           value: DropDownChoices.SortingOptions,
           child: Text(context.loc.widgetsFolderViewSortingOptions),
         ),
-        if (_viewType == FolderViewType.Standard)
-          PopupMenuItem<DropDownChoices>(
-            key: const ValueKey("ViewOptions"),
-            value: DropDownChoices.ViewOptions,
-            child: Text(context.loc.widgetsFolderViewViewOptions),
-          ),
       ],
     );
-
-    return <Widget>[
-      IconButton(
-        icon: const Icon(Icons.library_books),
-        onPressed: _folderViewChooserSelected,
-        key: const ValueKey("FolderViewSelector"),
-      ),
-      if (repo.remoteGitRepoConfigured) SyncButton(),
-      IconButton(
-        icon: const Icon(Icons.search),
-        onPressed: () {
-          logEvent(Event.SearchButtonPressed);
-          showSearch(
-            context: context,
-            delegate: NoteSearchDelegate(
-              _sortedNotesFolder!.notes,
-              _viewType,
-            ),
-          );
-        },
-      ),
-      extraActions,
-    ];
   }
 
   List<Widget> _buildInSelectionNoteActions() {
@@ -563,7 +495,7 @@ class _SliverHeader extends StatelessWidget {
 
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+        padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 4.0),
         child: Text(text, style: textTheme.titleSmall),
       ),
     );

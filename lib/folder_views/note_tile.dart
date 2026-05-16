@@ -46,11 +46,7 @@ class NoteTile extends StatelessWidget {
 
     assert(note.oid.isNotEmpty);
 
-    var tileContent = Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        border: Border.all(color: borderColor, width: selected ? 2.0 : 1.0),
-      ),
+    var tileContent = Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -61,34 +57,37 @@ class NoteTile extends StatelessWidget {
               text: note.title!,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.titleLarge!
-                  .copyWith(fontSize: textTheme.titleLarge!.fontSize! * 0.8),
+              style: textTheme.titleMedium!.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
               highlightText: searchTerm,
               highlightTextLowerCase: searchTermLowerCase,
             ),
           if (note.title != null) const SizedBox(height: 8.0),
           if (note.title == null && note.type == NoteType.Journal)
             HighlightedText(
-              text: '${note.created.day} ${DateFormat('MMMM, yyyy').format(note.created)}\n${DateFormat('EEEE HH:mm').format(note.created)}',
+              text:
+                  '${note.created.day} ${DateFormat('MMMM, yyyy').format(note.created)}\n${DateFormat('EEEE HH:mm').format(note.created)}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: textTheme.titleLarge!
-                  .copyWith(fontSize: textTheme.titleLarge!.fontSize! * 0.8),
+              style: textTheme.titleMedium!.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
               highlightText: searchTerm,
               highlightTextLowerCase: searchTermLowerCase,
             ),
-          if (note.title == null && note.type == NoteType.Journal) const SizedBox(height: 8.0),
-          Flexible(
-            flex: 1,
-            child: _buildBody(context, body),
-          ),
-          const SizedBox(height: 8.0),
+          if (note.title == null && note.type == NoteType.Journal)
+            const SizedBox(height: 8.0),
+          _buildBody(context, body),
+          const SizedBox(height: 12.0),
           Text(
             note.filePath,
-            style: textTheme.bodySmall!.copyWith(
+            style: textTheme.labelSmall!.copyWith(
               fontFamily: 'Roboto Mono',
-              fontSize: textTheme.bodySmall!.fontSize! * 0.9,
-              color: textTheme.bodySmall!.color!.withOpacity(0.5),
+              fontSize: 10,
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -97,12 +96,20 @@ class NoteTile extends StatelessWidget {
       ),
     );
 
-    const borderRadius = BorderRadius.all(Radius.circular(8));
-    return Material(
-      borderRadius: borderRadius,
-      type: MaterialType.card,
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+          width: selected ? 2.0 : 1.0,
+        ),
+      ),
+      color: theme.colorScheme.surface,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: borderRadius,
         onTap: () => noteTapped(note),
         onLongPress: () => noteLongPressed(note),
         child: Hero(
