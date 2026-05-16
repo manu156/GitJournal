@@ -71,7 +71,7 @@ class CardView extends StatelessWidget {
 
     return SliverPadding(
       sliver: gridView,
-      padding: const EdgeInsets.fromLTRB(12.0, 0.0, 12.0, 12.0 + 48.0),
+      padding: const EdgeInsets.fromLTRB(12.0, 16.0, 12.0, 12.0 + 48.0),
     );
   }
 }
