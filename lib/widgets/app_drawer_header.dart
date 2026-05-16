@@ -27,42 +27,37 @@ class AppDrawerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var appConfig = context.watch<AppConfig>();
+    var colorScheme = Theme.of(context).colorScheme;
 
-    var top = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/icon/icon.png'),
-            ),
-          ),
-          child: SizedBox(width: 64, height: 64),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-          child: ThemeSwitcherButton(),
-        ),
-      ],
-    );
-
-    var currentRepo = _CurrentRepo(
-      repoListToggled: repoListToggled,
-    );
-
-    var header = DrawerHeader(
-      margin: const EdgeInsets.all(0.0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).highlightColor,
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+    var header = Container(
+      color: colorScheme.surfaceContainerLow,
+      padding: const EdgeInsets.fromLTRB(28, 28, 16, 16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          top,
-          currentRepo,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Safe area top padding
+          SizedBox(height: MediaQuery.of(context).padding.top),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // App icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/icon/icon.png'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const ThemeSwitcherButton(),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _CurrentRepo(repoListToggled: repoListToggled),
         ],
       ),
     );
@@ -75,7 +70,7 @@ class AppDrawerHeader extends StatelessWidget {
     return Banner(
       message: isDesktop ? context.loc.beta : context.loc.pro,
       location: BannerLocation.topStart,
-      color: Theme.of(context).colorScheme.secondary,
+      color: colorScheme.primary,
       child: header,
     );
   }
@@ -121,42 +116,48 @@ class __CurrentRepoState extends State<_CurrentRepo>
   Widget build(BuildContext context) {
     _fetchRepoInfo();
 
-    var textTheme = Theme.of(context).textTheme;
-
-    var w = Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(_repoFolderName, style: textTheme.titleLarge),
-              const SizedBox(height: 8.0),
-              Text(
-                _gitRemoteUrl,
-                style: textTheme.titleSmall,
-                overflow: TextOverflow.clip,
-                maxLines: 1,
-              ),
-              const SizedBox(height: 8.0),
-            ],
-          ),
-        ),
-        RotationTransition(
-          turns: _animation,
-          child: IconButton(
-            icon: const FaIcon(FontAwesomeIcons.angleDown),
-            onPressed: _pressed,
-          ),
-        ),
-      ],
-    );
+    var theme = Theme.of(context);
+    var colorScheme = theme.colorScheme;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _pressed,
-      child: w,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _repoFolderName,
+                  style: theme.textTheme.titleMedium!.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _gitRemoteUrl,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+          RotationTransition(
+            turns: _animation,
+            child: Icon(
+              Icons.expand_more,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -204,19 +205,21 @@ class __CurrentRepoState extends State<_CurrentRepo>
 }
 
 class ThemeSwitcherButton extends StatelessWidget {
+  const ThemeSwitcherButton();
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      child: const FaIcon(FontAwesomeIcons.solidMoon),
-      onTap: () {
-        var theme = Theme.of(context);
+    var theme = Theme.of(context);
+    var isDark = theme.brightness == Brightness.dark;
+    return IconButton(
+      icon: Icon(
+        isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      onPressed: () {
         var settings = context.read<Settings>();
-
-        if (theme.brightness == Brightness.light) {
-          settings.theme = SettingsTheme.Dark;
-        } else {
-          settings.theme = SettingsTheme.Light;
-        }
+        settings.theme = isDark ? SettingsTheme.Light : SettingsTheme.Dark;
         settings.save();
       },
     );

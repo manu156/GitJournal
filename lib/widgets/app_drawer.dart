@@ -127,11 +127,11 @@ class _AppDrawerState extends State<AppDrawer>
       );
     }
 
-    var divider = const Row(children: <Widget>[Expanded(child: Divider())]);
+    var colorScheme = Theme.of(context).colorScheme;
 
     return Drawer(
+      backgroundColor: colorScheme.surfaceContainerLow,
       child: ListView(
-        // Important: Remove any padding from the ListView.
         padding: EdgeInsets.zero,
         children: <Widget>[
           AppDrawerHeader(
@@ -143,88 +143,105 @@ class _AppDrawerState extends State<AppDrawer>
               }
             },
           ),
-          // If they are multiple show the current one which a tick mark
+          // Repo switcher list
           _buildRepoList(),
-          if (setupGitButton != null) ...[setupGitButton, divider],
-          if (!appConfig.proMode)
+
+          // Git setup nudge
+          if (setupGitButton != null) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 4),
+              child: setupGitButton,
+            ),
+          ],
+
+          // Pro upgrade
+          if (!appConfig.proMode) ...[
+            const SizedBox(height: 4),
             _buildDrawerTile(
               context,
-              icon: Icons.power,
+              icon: Icons.workspace_premium_outlined,
               title: context.loc.drawerPro,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, PurchaseScreen.routePath);
-
-                logEvent(
-                  Event.PurchaseScreenOpen,
-                  parameters: {"from": "drawer"},
-                );
+                logEvent(Event.PurchaseScreenOpen,
+                    parameters: {"from": "drawer"});
               },
             ),
+            const SizedBox(height: 4),
+            _sectionLabel(context, 'Navigate'),
+          ],
+
           if (appConfig.experimentalAccounts)
             _buildDrawerTile(
               context,
-              icon: Icons.account_circle,
+              icon: Icons.account_circle_outlined,
               title: context.loc.drawerLogin,
               onTap: () => _navTopLevel(context, LoginPage.routePath),
               selected: currentRoute == LoginPage.routePath,
             ),
-          if (!appConfig.proMode) divider,
-          if (repo != null)
+
+          if (repo != null) ...[
+            if (appConfig.proMode)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: _sectionLabel(context, 'Navigate'),
+              ),
             _buildDrawerTile(
               context,
-              icon: Icons.note,
+              icon: Icons.lightbulb_outline,
               title: context.loc.drawerAll,
               onTap: () => _navTopLevel(context, HomeScreen.routePath),
               selected: currentRoute == HomeScreen.routePath,
             ),
-          if (repo != null)
             _buildDrawerTile(
               context,
-              icon: Icons.folder,
+              icon: Icons.folder_outlined,
               title: context.loc.drawerFolders,
-              onTap: () => _navTopLevel(context, FolderListingScreen.routePath),
+              onTap: () =>
+                  _navTopLevel(context, FolderListingScreen.routePath),
               selected: currentRoute == FolderListingScreen.routePath,
             ),
-          if (repo != null)
             _buildDrawerTile(
               context,
-              icon: FontAwesomeIcons.tag,
-              isFontAwesome: true,
+              icon: Icons.label_outline,
               title: context.loc.drawerTags,
-              onTap: () => _navTopLevel(context, TagListingScreen.routePath),
+              onTap: () =>
+                  _navTopLevel(context, TagListingScreen.routePath),
               selected: currentRoute == TagListingScreen.routePath,
             ),
-          divider,
+          ],
+
+          const SizedBox(height: 4),
+          _sectionLabel(context, 'More'),
           _buildDrawerTile(
             context,
-            icon: Icons.share,
+            icon: Icons.share_outlined,
             title: context.loc.drawerShare,
             onTap: () {
               Navigator.pop(context);
               Share.share('Checkout GitJournal https://gitjournal.io/');
-
               logEvent(Event.DrawerShare);
             },
           ),
           if (Platform.isAndroid || Platform.isIOS)
             _buildDrawerTile(
               context,
-              icon: Icons.feedback,
+              icon: Icons.star_outline,
               title: context.loc.drawerRate,
               onTap: () {
                 LaunchReview.launch(
                   androidAppId: "io.gitjournal.gitjournal",
                   iOSAppId: "1466519634",
                 );
-
                 Navigator.pop(context);
                 logEvent(Event.DrawerRate);
               },
             ),
           _buildDrawerTile(
             context,
-            icon: Icons.rate_review,
+            icon: Icons.rate_review_outlined,
             title: context.loc.drawerFeedback,
             onTap: () async {
               await createFeedback(context);
@@ -233,7 +250,7 @@ class _AppDrawerState extends State<AppDrawer>
           ),
           _buildDrawerTile(
             context,
-            icon: Icons.bug_report,
+            icon: Icons.bug_report_outlined,
             title: context.loc.drawerBug,
             onTap: () async {
               await createBugReport(context);
@@ -243,16 +260,29 @@ class _AppDrawerState extends State<AppDrawer>
           if (repo != null)
             _buildDrawerTile(
               context,
-              icon: Icons.settings,
+              icon: Icons.settings_outlined,
               title: context.loc.settingsTitle,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, SettingsScreen.routePath);
-
                 logEvent(Event.DrawerSettings);
               },
             ),
+          const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 8, 28, 4),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall!.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
