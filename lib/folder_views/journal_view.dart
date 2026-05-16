@@ -139,6 +139,16 @@ class JournalNoteListTile extends StatelessWidget {
         highlightText: searchTerm,
         highlightTextLowerCase: searchTermLowerCase,
       ),
+      const SizedBox(height: 4.0),
+      Text(
+        note.filePath,
+        style: textTheme.bodySmall!.copyWith(
+          fontFamily: 'Roboto Mono',
+          color: textTheme.bodySmall!.color!.withOpacity(0.5),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     ];
 
     var tile = ListTile(

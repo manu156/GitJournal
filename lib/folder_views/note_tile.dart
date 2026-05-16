@@ -82,6 +82,17 @@ class NoteTile extends StatelessWidget {
             flex: 1,
             child: _buildBody(context, body),
           ),
+          const SizedBox(height: 8.0),
+          Text(
+            note.filePath,
+            style: textTheme.bodySmall!.copyWith(
+              fontFamily: 'Roboto Mono',
+              fontSize: textTheme.bodySmall!.fontSize! * 0.9,
+              color: textTheme.bodySmall!.color!.withOpacity(0.5),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
