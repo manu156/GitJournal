@@ -103,6 +103,7 @@ dependencies:
   flutter_bloc: ^8.1.6
   bloc: ^8.1.4
   supabase_flutter: ^2.6.0
+  diff_match_patch: ^0.4.1
 
 dev_dependencies:
   benchmark_harness: ^2.0.0
