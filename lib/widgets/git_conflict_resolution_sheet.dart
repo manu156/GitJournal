@@ -11,6 +11,7 @@ import 'package:dart_git/plumbing/objects/blob.dart';
 import 'package:flutter/material.dart';
 import 'package:gitjournal/repository.dart';
 import 'package:gitjournal/utils/diff_helper.dart';
+import 'package:gitjournal/widgets/collapsible_diff_view.dart';
 import 'package:provider/provider.dart';
 
 void showGitConflictResolution(BuildContext context) {
@@ -238,54 +239,12 @@ class _ConflictItemState extends State<_ConflictItem> {
               const SizedBox(height: 8),
 
               // Diff View
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: LineDiffHelper.calculateDiff(_localContent ?? '', _remoteContent ?? '')
-                      .map((l) => _buildDiffLine(l, theme))
-                      .toList(),
-                ),
+              CollapsibleDiffView(
+                lines: LineDiffHelper.calculateDiff(_localContent ?? '', _remoteContent ?? ''),
+                contextLines: 5,
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDiffLine(DiffLine line, ThemeData theme) {
-    final cs = theme.colorScheme;
-    Color? bgColor;
-    Color? textColor;
-    String prefix = ' ';
-
-    if (line.type == DiffType.added) {
-      bgColor = Colors.green.withValues(alpha: 0.15);
-      textColor = Colors.green[700];
-      prefix = '+';
-    } else if (line.type == DiffType.removed) {
-      bgColor = Colors.red.withValues(alpha: 0.15);
-      textColor = Colors.red[700];
-      prefix = '-';
-    }
-
-    return Container(
-      width: double.infinity,
-      color: bgColor,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
-      child: Text(
-        '$prefix ${line.content}',
-        style: theme.textTheme.bodySmall!.copyWith(
-          fontFamily: 'Roboto Mono',
-          color: textColor ?? cs.onSurface,
-          fontSize: 12,
         ),
       ),
     );
