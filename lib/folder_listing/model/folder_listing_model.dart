@@ -12,6 +12,8 @@ class FolderListingFolder extends Equatable {
   final bool hasSubFolders;
   final int noteCount;
   final String publicName;
+  final bool isEncrypted;
+  final bool isUnlocked;
 
   final FolderListingFolder? parent;
   final List<FolderListingFolder> subFolders;
@@ -23,11 +25,21 @@ class FolderListingFolder extends Equatable {
     required this.publicName,
     required this.parent,
     required this.subFolders,
+    this.isEncrypted = false,
+    this.isUnlocked = true,
   });
 
   @override
-  List<Object> get props =>
-      [path, hasSubFolders, noteCount, publicName, parent ?? "", subFolders];
+  List<Object> get props => [
+        path,
+        hasSubFolders,
+        noteCount,
+        publicName,
+        parent ?? "",
+        subFolders,
+        isEncrypted,
+        isUnlocked,
+      ];
 
   FolderListingFolder copyWith({
     String? path,
@@ -36,6 +48,8 @@ class FolderListingFolder extends Equatable {
     String? publicName,
     FolderListingFolder? parent,
     List<FolderListingFolder>? subFolders,
+    bool? isEncrypted,
+    bool? isUnlocked,
   }) {
     return FolderListingFolder(
       path: path ?? this.path,
@@ -44,6 +58,8 @@ class FolderListingFolder extends Equatable {
       publicName: publicName ?? this.publicName,
       parent: parent ?? this.parent,
       subFolders: subFolders ?? this.subFolders,
+      isEncrypted: isEncrypted ?? this.isEncrypted,
+      isUnlocked: isUnlocked ?? this.isUnlocked,
     );
   }
 }
@@ -59,6 +75,8 @@ FolderListingFolder convertNotesFolderFS(
     publicName: fsFolder.name,
     parent: parent,
     subFolders: const [],
+    isEncrypted: fsFolder.isEncrypted,
+    isUnlocked: fsFolder.isUnlocked,
   );
   if (fsFolder.subFolders.isEmpty) {
     return root;

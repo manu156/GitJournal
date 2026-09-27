@@ -71,17 +71,14 @@ public class GitJournalRemoteViewsFactory implements RemoteViewsService.RemoteVi
             views.setTextViewText(R.id.note_body, body);
             
             // Fill in the locking intent
-            // Fill in the locking intent
             Intent fillInIntent = new Intent();
             fillInIntent.setData(Uri.parse("gitjournal://note?path=" + Uri.encode(note.optString("path"))));
             views.setOnClickFillInIntent(R.id.widget_item_root, fillInIntent);
+            views.setOnClickFillInIntent(R.id.note_title, fillInIntent);
+            views.setOnClickFillInIntent(R.id.note_body, fillInIntent);
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        // We need to set the fillInIntent on SOMETHING.
-        // Let's set it on the title and body for now as a fallback if I forget to update XML.
-        // But the best is to update the XML.
         
         return views;
     }

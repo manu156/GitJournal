@@ -6,6 +6,7 @@
 
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/widgets.dart';
+import 'package:gitjournal/core/encryption/folder_encryption_service.dart';
 import 'package:gitjournal/core/file/file_storage.dart';
 import 'package:gitjournal/core/file/unopened_files.dart';
 import 'package:gitjournal/core/note_storage.dart';
@@ -124,10 +125,16 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
 
   @override
   bool get hasNotes {
+    if (isEncrypted && !isUnlocked) {
+      return false;
+    }
     return _files.indexWhere((n) => n is Note) != -1;
   }
 
   bool get hasNotesRecursive {
+    if (isEncrypted && !isUnlocked) {
+      return false;
+    }
     if (hasNotes) {
       return true;
     }
@@ -146,7 +153,27 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
 
   @override
   List<Note> get notes {
+    if (isEncrypted && !isUnlocked) {
+      return const [];
+    }
     return _files.whereType<Note>().toList();
+  }
+
+  void unloadNotes() {
+    for (var i = 0; i < _files.length; i++) {
+      var file = _files[i];
+      if (file is Note) {
+        _files[i] = UnopenedFile(
+          file: file.file,
+          parent: this,
+        );
+        _entityMap[file.filePath] = _files[i];
+      }
+    }
+    for (var sub in _folders) {
+      sub.unloadNotes();
+    }
+    notifyListeners();
   }
 
   @override
@@ -162,7 +189,26 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
     return _folders;
   }
 
+  bool get hasEncryptionMarker {
+    var markerPath =
+        p.join(fullFolderPath, FolderEncryptionService.markerFileName);
+    return io.File(markerPath).existsSync();
+  }
+
+  NotesFolderFS? get encryptionRoot {
+    if (hasEncryptionMarker) return this;
+    return _parent?.encryptionRoot;
+  }
+
+  bool get isEncrypted => encryptionRoot != null;
+
+  bool get isUnlocked =>
+      !isEncrypted || FolderEncryptionService.instance.isUnlocked();
+
   Future<void> loadNotes() async {
+    if (isEncrypted && !isUnlocked) {
+      return;
+    }
     const maxParallel = 10;
     var futures = <Future>[];
 
@@ -291,40 +337,33 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
 
       assert(fsEntity is io.File);
 
-      late final File file;
-      try {
-        file = await fileStorage.load(filePath);
-      } catch (ex, st) {
-        Log.e("NotesFolderFS FileStorage Failure", ex: ex, stacktrace: st);
-        if (ex is FileStorageCacheIncomplete) return;
-        continue;
-      }
-
       var fileName = p.basename(filePath);
       if (fileName.startsWith('.')) {
-        var ignoredFile = IgnoredFile(
-          file: file,
-          reason: IgnoreReason.HiddenFile,
-        );
-
-        newFiles.add(ignoredFile);
-        newEntityMap[filePath] = ignoredFile;
         continue;
       }
 
       var formatInfo = NoteFileFormatInfo(config);
       if (!formatInfo.isAllowedFileName(filePath)) {
-        var ignoredFile = IgnoredFile(
-          file: file,
-          reason: IgnoreReason.InvalidExtension,
-        );
-
-        newFiles.add(ignoredFile);
-        newEntityMap[filePath] = ignoredFile;
         continue;
       }
 
-      // Log.v("Found file", props: {"path": filePath});
+      late final File file;
+      try {
+        file = await fileStorage.load(filePath);
+      } catch (ex, st) {
+        var ioFile = io.File(p.join(repoPath, filePath));
+        var stat = ioFile.statSync();
+        var dt = stat.modified;
+        file = File(
+          oid: GitHash.compute(await ioFile.readAsBytes()),
+          filePath: filePath,
+          repoPath: repoPath,
+          modified: dt,
+          created: dt,
+          fileLastModified: dt,
+        );
+      }
+
       var fileToBeProcessed = UnopenedFile(
         file: file,
         parent: this,
@@ -586,8 +625,12 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
   }
 
   Note? getNoteWithSpec(String spec) {
-    // FIXME: Once each note is stored with the spec as the path, this becomes
-    //        so much easier!
+    if (spec.startsWith('/')) {
+      spec = spec.substring(1);
+    }
+    if (spec.startsWith('./')) {
+      spec = spec.substring(2);
+    }
     var parts = spec.split(p.separator);
 
     var folder = this;
@@ -595,7 +638,7 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
       var folderName = parts[0];
 
       bool foundFolder = false;
-      for (var f in _folders) {
+      for (var f in folder._folders) {
         if (f.name == folderName) {
           folder = f;
           foundFolder = true;
@@ -611,8 +654,68 @@ class NotesFolderFS with NotesFolderNotifier implements NotesFolder {
 
     var fileName = parts[0];
     for (var note in folder.notes) {
-      if (note.fileName == fileName) {
+      if (note.fileName == fileName || note.filePath == spec) {
         return note;
+      }
+    }
+
+    return null;
+  }
+
+  Future<Note?> getOrLoadNoteWithSpec(String spec) async {
+    var note = getNoteWithSpec(spec);
+    if (note != null) return note;
+
+    if (spec.startsWith('/')) {
+      spec = spec.substring(1);
+    }
+    if (spec.startsWith('./')) {
+      spec = spec.substring(2);
+    }
+    var parts = spec.split(p.separator);
+
+    var folder = this;
+    while (parts.length != 1) {
+      var folderName = parts[0];
+
+      NotesFolderFS? nextFolder;
+      for (var f in folder._folders) {
+        if (f.name == folderName) {
+          nextFolder = f;
+          break;
+        }
+      }
+
+      if (nextFolder == null) {
+        await folder.load();
+        for (var f in folder._folders) {
+          if (f.name == folderName) {
+            nextFolder = f;
+            break;
+          }
+        }
+      }
+
+      if (nextFolder == null) {
+        return null;
+      }
+      folder = nextFolder;
+      parts.removeAt(0);
+    }
+
+    var fileName = parts[0];
+    for (var n in folder.notes) {
+      if (n.fileName == fileName || n.filePath == spec) {
+        return n;
+      }
+    }
+
+    await folder.load();
+    await folder.loadNotes();
+
+    for (var n in folder.notes) {
+      if (n.fileName == fileName || n.filePath == spec) {
+        return n;
       }
     }
 

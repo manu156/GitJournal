@@ -42,7 +42,7 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test('Should respect modified key as modified', () async {
+  test('Should not add YAML frontmatter when saving modified note', () async {
     var content = """---
 bar: Foo
 modified: 2017-02-15T22:41:19+01:00
@@ -57,7 +57,8 @@ Hello
     var parentFolder = NotesFolderFS.root(config, fileStorage);
     var file = File.short("note.md", repoPath, gitDt);
     var note = await NoteStorage.load(file, parentFolder);
-    expect(note.canHaveMetadata, true);
+    expect(note.canHaveMetadata, false);
+    expect(note.body, content);
 
     note = note.copyWith(
       modified: DateTime.utc(2019, 12, 02, 4, 0, 0),
@@ -65,19 +66,11 @@ Hello
     );
     note = await NoteStorage.save(note);
 
-    var expectedContent = """---
-bar: Foo
-modified: 2019-12-02T04:00:00+00:00
----
-
-Hello
-""";
-
     var actualContent = io.File(noteFullPath).readAsStringSync();
-    expect(actualContent, equals(expectedContent));
+    expect(actualContent, equals(content));
   });
 
-  test('Should respect modified key as mod', () async {
+  test('Treats YAML header as plain text body', () async {
     var content = """---
 bar: Foo
 mod: 2017-02-15T22:41:19+01:00
@@ -93,26 +86,15 @@ Hello
     var file = File.short("note.md", repoPath, gitDt);
     var note = await NoteStorage.load(file, parentFolder);
 
-    note = note.copyWith(
-      modified: DateTime.utc(2019, 12, 02, 4, 0, 0),
-      file: note.file.copyFile(oid: GitHash.zero()),
-    );
-
+    expect(note.body, content);
+    note = note.copyWith(file: note.file.copyFile(oid: GitHash.zero()));
     await NoteStorage.save(note);
 
-    var expectedContent = """---
-bar: Foo
-mod: 2019-12-02T04:00:00+00:00
----
-
-Hello
-""";
-
     var actualContent = io.File(noteFullPath).readAsStringSync();
-    expect(actualContent, equals(expectedContent));
+    expect(actualContent, equals(content));
   });
 
-  test('Should read and write tags', () async {
+  test('Tags support is removed and content is treated as normal text', () async {
     var content = """---
 bar: Foo
 tags: [A, B]
@@ -128,26 +110,16 @@ Hello
     var file = File.short("note5.md", repoPath, gitDt);
     var note = await NoteStorage.load(file, parentFolder);
 
-    expect(note.tags.contains('A'), true);
-    expect(note.tags.contains('B'), true);
-    expect(note.tags.length, 2);
+    expect(note.tags.isEmpty, true);
+    expect(note.body, content);
 
     note = note.copyWith(
-      tags: {'A', 'C', 'D'}.lock,
       file: note.file.copyFile(oid: GitHash.zero()),
     );
     await NoteStorage.save(note);
 
-    var expectedContent = """---
-bar: Foo
-tags: [A, C, D]
----
-
-Hello
-""";
-
     var actualContent = io.File(noteFullPath).readAsStringSync();
-    expect(actualContent, equals(expectedContent));
+    expect(actualContent, equals(content));
   });
 
   test('Should parse links', () async {
@@ -230,7 +202,7 @@ Gee
 
     expect(txtNote.fileFormat, NoteFileFormat.Txt);
     expect(txtNote.canHaveMetadata, false);
-    expect(txtNote.title, null);
+    expect(txtNote.title, "note16");
     expect(txtNote.body, content);
   });
 
@@ -243,7 +215,7 @@ Gee
     expect(p.withoutExtension(path).isNotEmpty, true);
   });
 
-  test('Txt files header is not read', () async {
+  test('Txt files header is not read and title is inferred from file name', () async {
     var content = """# Hello
 
 Gee
@@ -257,11 +229,11 @@ Gee
 
     expect(txtNote.fileFormat, NoteFileFormat.Txt);
     expect(txtNote.canHaveMetadata, false);
-    expect(txtNote.title, null);
+    expect(txtNote.title, "note163");
     expect(txtNote.body, content);
   });
 
-  test('Ensure title is null', () async {
+  test('Ensure title is inferred from file name without extension', () async {
     var content = """---
 created: 2019-11-29T01:37:26+01:00
 pinned: true
@@ -278,10 +250,10 @@ Isn't it time you write;
     var file = File.short("note.md", repoPath, gitDt);
     var note = await NoteStorage.load(file, parentFolder);
 
-    expect(note.title, null);
+    expect(note.title, "note");
   });
 
-  test('Dendron FrontMatter', () async {
+  test('Frontmatter dates are not parsed and gitDt is used', () async {
     var content = """---
 bar: Foo
 updated: 1626257689
@@ -299,76 +271,16 @@ Hello
     var note = await NoteStorage.load(file, parentFolder);
     parentFolder.add(note);
 
-    expect(note.modified, DateTime.parse('2021-07-14T10:14:49Z'));
-    expect(note.created, DateTime.parse('2021-07-14T10:14:49Z'));
+    expect(note.created, gitDt);
+    expect(note.modified, gitDt);
 
     note = note.copyWith(
-      created: DateTime.parse('2020-06-13T10:14:49Z'),
-      modified: DateTime.parse('2020-07-14T10:14:49Z'),
       file: note.file.copyFile(oid: GitHash.zero()),
     );
-
-    var expectedContent = """---
-bar: Foo
-updated: 1594721689
-created: 1592043289
----
-
-Hello
-""";
-
     await NoteStorage.save(note);
 
     var actualContent = io.File(noteFullPath).readAsStringSync();
-    expect(actualContent, equals(expectedContent));
-  });
-
-  test('Date Only FrontMatter', () async {
-    var content = """---
-bar: Foo
-modified: 2022-07-14
-created: 2024-07-14
----
-
-Hello
-""";
-
-    var noteFullPath = p.join(repoPath, "note.md");
-    await io.File(noteFullPath).writeAsString(content);
-
-    var parentFolder = NotesFolderFS.root(config, fileStorage);
-    var file = File.short("note.md", repoPath, gitDt);
-    var note = await NoteStorage.load(file, parentFolder);
-    parentFolder.add(note);
-
-    // Doing this to avoid timezone issues
-    expect(note.modified.year, 2022);
-    expect(note.modified.month, 7);
-    expect(note.modified.day, 14);
-
-    expect(note.created.year, 2024);
-    expect(note.created.month, 7);
-    expect(note.created.day, 14);
-
-    note = note.copyWith(
-      modified: DateTime.parse('2022-08-15'),
-      created: DateTime.parse('2024-08-15'),
-      file: note.file.copyFile(oid: GitHash.zero()),
-    );
-
-    var expectedContent = """---
-bar: Foo
-modified: 2022-08-15
-created: 2024-08-15
----
-
-Hello
-""";
-
-    await NoteStorage.save(note);
-
-    var actualContent = io.File(noteFullPath).readAsStringSync();
-    expect(actualContent, equals(expectedContent));
+    expect(actualContent, equals(content));
   });
 
   test('Note title should be saved as File Name', () async {
@@ -405,7 +317,7 @@ Hello
     expect(n5.fileFormat, NoteFileFormat.Txt);
   });
 
-  test('File without extension with YAML top header', () async {
+  test('File with top header treats header as normal text without YAML parsing', () async {
     var content = """---
 title: To do 6
 date: 20250128T143024
@@ -414,27 +326,25 @@ tags: todo;
 
 Buy groceries
 """;
-    var noteFullPath = p.join(repoPath, "todo");
+    var noteFullPath = p.join(repoPath, "To do 6");
     await io.File(noteFullPath).writeAsString(content);
 
     var parentFolder = NotesFolderFS.root(config, fileStorage);
-    var file = File.short("todo", repoPath, gitDt);
+    var file = File.short("To do 6", repoPath, gitDt);
     var note = await NoteStorage.load(file, parentFolder);
 
     expect(note.fileFormat, NoteFileFormat.Txt);
     expect(note.title, "To do 6");
-    expect(note.created, DateTime(2025, 1, 28, 14, 30, 24));
-    expect(note.tags.contains("todo"), true);
-    expect(note.tags.length, 1);
-    expect(note.body, "Buy groceries\n");
-    expect(note.canHaveMetadata, true);
+    expect(note.created, gitDt);
+    expect(note.tags.isEmpty, true);
+    expect(note.body, content);
+    expect(note.canHaveMetadata, false);
 
-    // Save and verify it retains YAML header
+    // Save and verify it writes plain body
     note = note.resetOid();
     await NoteStorage.save(note);
     var savedContent = io.File(noteFullPath).readAsStringSync();
-    expect(savedContent.contains("title: To do 6"), true);
-    expect(savedContent.contains("Buy groceries"), true);
+    expect(savedContent, content);
   });
 
   test('File without extension without YAML top header (optional header)', () async {
@@ -447,7 +357,7 @@ Buy groceries
     var note = await NoteStorage.load(file, parentFolder);
 
     expect(note.fileFormat, NoteFileFormat.Txt);
-    expect(note.title, null);
+    expect(note.title, "notes");
     expect(note.tags.isEmpty, true);
     expect(note.body, content);
     expect(note.canHaveMetadata, false);

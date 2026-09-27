@@ -170,8 +170,11 @@ class GitJournalRepo with ChangeNotifier {
     var repo = await GitAsyncRepository.load(repoPath);
     var remoteConfigured = repo.config.remotes.isNotEmpty;
 
-    if (!storageConfig.storeInternally) {
+    try {
       await _commitUnTrackedChanges(repo, gitConfig);
+    } catch (e, st) {
+      Log.e("Failed to commit untracked changes on repo load",
+          ex: e, stacktrace: st);
     }
 
     await io.Directory(cacheDir).create(recursive: true);
@@ -318,11 +321,20 @@ class GitJournalRepo with ChangeNotifier {
   }
 
   bool _shouldCheckForChanges() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      return !storageConfig.storeInternally;
-    }
-    // Overwriting this for now, as I want the tests to pass
-    return !storageConfig.storeInternally;
+    return true;
+  }
+
+  Future<void> commitAll({String? message}) async {
+    await _gitOpLock.synchronized(() async {
+      try {
+        var repo = await GitAsyncRepository.load(repoPath);
+        await _commitUnTrackedChanges(repo, gitConfig, message: message);
+        numChanges += 1;
+        notifyListeners();
+      } catch (ex) {
+        if (ex is! GitEmptyCommit) rethrow;
+      }
+    });
   }
 
   Future<void> resolveConflict(ConflictInfo conflict, bool keepLocal) async {
@@ -353,13 +365,15 @@ class GitJournalRepo with ChangeNotifier {
   }
 
   Future<void> syncNotes({bool doNotThrow = false}) async {
-    // This is extremely slow with dart-git, can take over a second!
     if (_shouldCheckForChanges()) {
       try {
-        var repo = await GitAsyncRepository.load(repoPath);
-        await _commitUnTrackedChanges(repo, gitConfig);
+        await _gitOpLock.synchronized(() async {
+          var repo = await GitAsyncRepository.load(repoPath);
+          await _commitUnTrackedChanges(repo, gitConfig);
+        });
       } catch (ex, st) {
-        Log.e("SyncNotes Failed to Load Repo", ex: ex, stacktrace: st);
+        Log.e("SyncNotes Failed to Commit Untracked Changes",
+            ex: ex, stacktrace: st);
         return;
       }
     }
@@ -668,6 +682,10 @@ class GitJournalRepo with ChangeNotifier {
     }
     newNote.parent.updateNote(newNote);
 
+    if (newNote.oid == oldNote.oid) {
+      return newNote;
+    }
+
     await _gitOpLock.synchronized(() async {
       Log.d("Got updateNote lock");
 
@@ -957,7 +975,7 @@ Future<void> _ensureOneCommitInRepo({
 }
 
 Future<void> _commitUnTrackedChanges(
-    GitAsyncRepository repo, GitConfig gitConfig) async {
+    GitAsyncRepository repo, GitConfig gitConfig, {String? message}) async {
   var timer = Stopwatch()..start();
   //
   // Check for un-committed files and save them
@@ -966,7 +984,7 @@ Future<void> _commitUnTrackedChanges(
 
   try {
     await repo.commit(
-      message: CommitMessageBuilder().autoCommit(),
+      message: message ?? CommitMessageBuilder().autoCommit(),
       author: GitAuthor(
         name: gitConfig.gitAuthor,
         email: gitConfig.gitAuthorEmail,

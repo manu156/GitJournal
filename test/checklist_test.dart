@@ -279,8 +279,8 @@ Booga Wooga
       checklist.removeAt(0);
 
       note = checklist.note;
-      expect(note.body, "");
-      expect(note.title, "Title");
+      expect(note.body, "#Title\n");
+      expect(note.title, "note429");
     });
   });
 }

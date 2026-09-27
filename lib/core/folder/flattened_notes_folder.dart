@@ -6,6 +6,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:gitjournal/core/folder/notes_folder.dart';
+import 'package:gitjournal/core/folder/notes_folder_fs.dart';
 import 'package:gitjournal/core/folder/notes_folder_notifier.dart';
 import 'package:gitjournal/core/note.dart';
 
@@ -23,6 +24,9 @@ class FlattenedNotesFolder with NotesFolderNotifier implements NotesFolder {
   }
 
   void _addFolder(NotesFolder folder) {
+    if (folder is NotesFolderFS && folder.isEncrypted && !folder.isUnlocked) {
+      return;
+    }
     _folders.add(folder);
 
     // Add Change notifiers

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:gitjournal/logger/logger.dart';
 import 'package:gitjournal/repository.dart';
 import 'package:gitjournal/services/widget_service.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +8,7 @@ import 'package:provider/provider.dart';
 class WidgetUpdater extends StatefulWidget {
   final Widget child;
 
-  const WidgetUpdater({Key? key, required this.child}) : super(key: key);
+  const WidgetUpdater({super.key, required this.child});
 
   @override
   _WidgetUpdaterState createState() => _WidgetUpdaterState();
@@ -39,9 +40,9 @@ class _WidgetUpdaterState extends State<WidgetUpdater> {
 
   Future<void> _updateWidget(GitJournalRepo repo) async {
     try {
-      print("WidgetUpdater: Updating widget...");
+      Log.d("WidgetUpdater: Updating widget...");
       final allNotes = repo.rootFolder.getAllNotes().toList();
-      print("WidgetUpdater: Found ${allNotes.length} notes");
+      Log.d("WidgetUpdater: Found ${allNotes.length} notes");
       await WidgetService.updateWidgetData(allNotes);
     } catch (e) {
       debugPrint("Widget Update Failed: $e");

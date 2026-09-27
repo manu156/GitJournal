@@ -16,7 +16,6 @@ import 'package:gitjournal/logger/logger.dart';
 import 'package:gitjournal/repository_manager.dart';
 import 'package:gitjournal/screens/error_screen.dart';
 import 'package:gitjournal/screens/home_screen.dart';
-import 'package:gitjournal/screens/tag_listing.dart';
 import 'package:gitjournal/settings/app_config.dart';
 import 'package:gitjournal/settings/bug_report.dart';
 import 'package:gitjournal/settings/settings_screen.dart';
@@ -203,14 +202,6 @@ class _AppDrawerState extends State<AppDrawer>
                   _navTopLevel(context, FolderListingScreen.routePath),
               selected: currentRoute == FolderListingScreen.routePath,
             ),
-            _buildDrawerTile(
-              context,
-              icon: Icons.label_outline,
-              title: context.loc.drawerTags,
-              onTap: () =>
-                  _navTopLevel(context, TagListingScreen.routePath),
-              selected: currentRoute == TagListingScreen.routePath,
-            ),
           ],
 
           const SizedBox(height: 4),
@@ -306,7 +297,7 @@ class _AppDrawerState extends State<AppDrawer>
                 : colorScheme.onSurfaceVariant,
           )
         : FaIcon(
-            icon,
+            FaIconData(icon),
             color: selected
                 ? colorScheme.onSecondaryContainer
                 : colorScheme.onSurfaceVariant,

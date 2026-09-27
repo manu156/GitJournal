@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gitjournal/core/encryption/folder_encryption_service.dart';
 import 'package:gitjournal/core/folder/flattened_notes_folder.dart';
 import 'package:gitjournal/core/folder/notes_folder_fs.dart';
 import 'package:gitjournal/folder_listing/bloc/folder_listing_bloc.dart';
@@ -21,11 +22,19 @@ import 'package:gitjournal/widgets/app_bar_menu_button.dart';
 import 'package:gitjournal/widgets/app_drawer.dart';
 import 'package:gitjournal/widgets/note_delete_dialog.dart';
 import 'package:gitjournal/widgets/rename_dialog.dart';
+import 'package:gitjournal/widgets/set_encryption_password_dialog.dart';
+import 'package:gitjournal/widgets/unlock_folder_dialog.dart';
 
 class FolderListingScreen extends StatelessWidget {
   static const routePath = '/folders';
 
   Widget _buildLoaded(BuildContext context, FolderListingLoaded state) {
+    var rootFolder = context.read<NotesFolderFS>();
+    var selectedFolderPath = state.selectedFolderPath;
+    var selectedNotesFolder = selectedFolderPath == null
+        ? null
+        : rootFolder.getFolderWithSpec(selectedFolderPath);
+
     var treeView = FolderTreeView(
       rootFolder: state.folder,
       selectedPath: state.selectedFolderPath,
@@ -37,6 +46,23 @@ class FolderListingScreen extends StatelessWidget {
         if (notesFolder == null) {
           showErrorSnackbar(context, "Folder not found");
           return;
+        }
+
+        if (notesFolder.isEncrypted && !notesFolder.isUnlocked) {
+          var unlocked = await showDialog<bool>(
+            context: context,
+            builder: (context) => UnlockFolderDialog(folder: notesFolder),
+          );
+          if (unlocked != true) {
+            return;
+          }
+          await notesFolder.load();
+          await notesFolder.loadNotes();
+          var repo = context.read<GitJournalRepo>();
+          await repo.reloadNotes();
+          var bloc = context.read<FolderListingBloc>();
+          bloc.add(FolderListingFolderSelected(notesFolder.folderPath));
+          bloc.add(FolderListingFolderUnselected());
         }
 
         var destination = settings.experimentalSubfolders
@@ -64,7 +90,6 @@ class FolderListingScreen extends StatelessWidget {
       },
     );
 
-    var selectedFolderPath = state.selectedFolderPath;
     var action = selectedFolderPath == null
         ? null
         : PopupMenuButton(
@@ -79,6 +104,18 @@ class FolderListingScreen extends StatelessWidget {
                   PopupMenuItem<String>(
                     value: "Create",
                     child: Text(context.loc.screensFoldersActionsSubFolder),
+                  ),
+                if (selectedNotesFolder != null &&
+                    !selectedNotesFolder.isEncrypted)
+                  const PopupMenuItem<String>(
+                    value: "Encrypt",
+                    child: Text("Encrypt Folder"),
+                  ),
+                if (selectedNotesFolder != null &&
+                    selectedNotesFolder.isEncrypted)
+                  const PopupMenuItem<String>(
+                    value: "Lock",
+                    child: Text("Lock Folder"),
                   ),
                 if (state.canDelete)
                   PopupMenuItem<String>(
@@ -113,6 +150,82 @@ class FolderListingScreen extends StatelessWidget {
                 if (folderName is String) {
                   var bloc = context.read<FolderListingBloc>();
                   bloc.add(FolderListingFolderCreated(folderName));
+                }
+              } else if (value == "Lock") {
+                if (selectedNotesFolder != null) {
+                  await FolderEncryptionService.instance.lock();
+                  selectedNotesFolder.unloadNotes();
+                  var bloc = context.read<FolderListingBloc>();
+                  bloc.add(FolderListingFolderUnselected());
+                  showSnackbar(context, "Folder locked");
+                }
+              } else if (value == "Encrypt") {
+                if (selectedNotesFolder != null) {
+                  var repo = context.read<GitJournalRepo>();
+                  var service = FolderEncryptionService.instance;
+                  var password =
+                      await service.resolvePassword(gitConfig: repo.gitConfig);
+
+                  if (password == null || password.isEmpty) {
+                    password = await showDialog<String>(
+                      context: context,
+                      builder: (context) => SetEncryptionPasswordDialog(
+                        folderName: selectedNotesFolder.name.isEmpty
+                            ? "Root Folder"
+                            : selectedNotesFolder.name,
+                      ),
+                    );
+                    if (password == null || password.isEmpty) return;
+                  } else {
+                    var confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text("Encrypt Folder"),
+                        content: Text(
+                          "Encrypt folder '${selectedNotesFolder.name}' and all its notes with your master encryption password?\n\nEncrypted notes will be immediately committed and synced to your Git remote.",
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text("Cancel"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text("Encrypt"),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm != true) return;
+                  }
+
+                  showSnackbar(context, "Encrypting folder and syncing...");
+
+                  try {
+                    await service.convertFolderToEncrypted(
+                      selectedNotesFolder,
+                      password,
+                      gitConfig: repo.gitConfig,
+                    );
+                    var folderName = selectedNotesFolder.name.isNotEmpty
+                        ? selectedNotesFolder.name
+                        : selectedNotesFolder.folderPath;
+                    await repo.commitAll(
+                      message: "Encrypt folder '$folderName'",
+                    );
+                    await repo.reloadNotes();
+                    await selectedNotesFolder.load();
+                    await selectedNotesFolder.loadNotes();
+                    await repo.syncNotes();
+
+                    var bloc = context.read<FolderListingBloc>();
+                    bloc.add(FolderListingFolderUnselected());
+                    showSnackbar(
+                        context, "Folder encrypted and synced to Git");
+                  } catch (e) {
+                    showErrorSnackbar(
+                        context, "Failed to encrypt folder: $e");
+                  }
                 }
               } else if (value == "Delete") {
                 var shouldDelete = await showDialog(

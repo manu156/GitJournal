@@ -21,6 +21,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugins.GeneratedPluginRegistrant;
 
+import android.content.Intent;
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 
@@ -37,6 +38,12 @@ public class MainActivity extends FlutterActivity {
                         result.notImplemented();
                 }
         );
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
     }
 
     @Override

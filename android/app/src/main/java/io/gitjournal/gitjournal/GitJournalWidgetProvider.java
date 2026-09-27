@@ -39,8 +39,13 @@ public class GitJournalWidgetProvider extends AppWidgetProvider {
 
         // Template for individual items
         Intent itemClickIntent = new Intent(context, MainActivity.class);
-        itemClickIntent.setAction("android.intent.action.MAIN");
-        PendingIntent itemClickPendingIntent = PendingIntent.getActivity(context, 1, itemClickIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+        itemClickIntent.setAction(es.antonborri.home_widget.HomeWidgetLaunchIntent.HOME_WIDGET_LAUNCH_ACTION);
+        itemClickIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            flags |= PendingIntent.FLAG_MUTABLE;
+        }
+        PendingIntent itemClickPendingIntent = PendingIntent.getActivity(context, 1, itemClickIntent, flags);
         views.setPendingIntentTemplate(R.id.widget_list_view, itemClickPendingIntent);
 
         appWidgetManager.updateAppWidget(appWidgetId, views);

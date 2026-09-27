@@ -8,36 +8,22 @@ import 'dart:convert';
 
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:gitjournal/core/file/file_storage.dart';
-import 'package:gitjournal/core/markdown/md_yaml_doc.dart';
-import 'package:gitjournal/core/markdown/md_yaml_doc_codec.dart';
-import 'package:gitjournal/core/markdown/md_yaml_doc_loader.dart';
 import 'package:gitjournal/core/markdown/md_yaml_note_serializer.dart';
 import 'package:gitjournal/logger/logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:universal_io/io.dart' as io;
 
+import 'encryption/folder_encryption_service.dart';
 import 'file/file.dart';
 import 'folder/notes_folder_fs.dart';
 import 'note.dart';
 import 'notes/note.dart';
 
 class NoteStorage {
-  static final _serializer = MarkdownYAMLCodec();
-
   static String serialize(Note note) {
-    // HACK: This isn't great as the raw editor still shows the note with metadata
-    var data = note.data;
-    if (!note.canHaveMetadata && note.fileFormat == NoteFileFormat.Markdown) {
-      // Fix issue 579: If there is no yaml header, the title would get lost unless it is stored somewhere.
-      // Hence, store it in the file as a first heading.
-      data = MdYamlDoc(
-        body: (note.title != null ? "# ${note.title!}\n" : "") + data.body,
-      );
-    }
-
-    var contents = _serializer.encode(data);
+    var contents = note.body;
     // Make sure all docs end with a \n
-    if (!contents.endsWith('\n')) {
+    if (contents.isNotEmpty && !contents.endsWith('\n')) {
       contents += '\n';
     }
 
@@ -49,7 +35,15 @@ class NoteStorage {
     assert(note.fileName.isNotEmpty);
     assert(note.oid.isEmpty);
 
-    var contents = utf8.encode(serialize(note));
+    var rawBytes = utf8.encode(serialize(note));
+    List<int> contents = rawBytes;
+
+    if (note.parent.isEncrypted) {
+      contents = await FolderEncryptionService.instance.encryptForFolder(
+        rawBytes,
+        note.parent,
+      );
+    }
 
     assert(note.fullFilePath.startsWith(p.separator));
 
@@ -67,8 +61,6 @@ class NoteStorage {
 
     return note;
   }
-
-  static final mdYamlDocLoader = MdYamlDocLoader();
 
   /// Fails with 'NoteReloadNotRequired' if the note doesn't need to be reloaded
   static Future<Note> reload(Note note, FileStorage fileStorage) async {
@@ -90,56 +82,35 @@ class NoteStorage {
     var filePath = file.fullFilePath;
     var format = NoteFileFormatInfo.fromFilePath(filePath);
 
-    var ext = p.extension(filePath).toLowerCase();
-    if (format == NoteFileFormat.Markdown ||
-        (format == NoteFileFormat.Txt && ext.isEmpty)) {
-      var data = await mdYamlDocLoader.loadDoc(filePath);
-      var settings = NoteSerializationSettings.fromConfig(parentFolder.config);
-      var noteSerializer = NoteSerializer.fromConfig(settings);
-      var note = noteSerializer.decode(
-        data: data,
-        parent: parentFolder,
-        file: file,
-        fileFormat: format,
-      );
-      return note;
-    } else if (format == NoteFileFormat.Txt) {
-      var note = Note.build(
-        parent: parentFolder,
-        file: file,
-        title: null,
-        body: await io.File(filePath).readAsString(),
-        noteType: NoteType.Unknown,
-        tags: ISet(),
-        extraProps: const {},
-        fileFormat: NoteFileFormat.Txt,
-        propsList: IList(),
-        serializerSettings:
-            NoteSerializationSettings.fromConfig(parentFolder.config),
-        created: null,
-        modified: null,
-      );
-      return note;
-    } else if (format == NoteFileFormat.OrgMode) {
-      var note = Note.build(
-        parent: parentFolder,
-        file: file,
-        title: null,
-        body: await io.File(filePath).readAsString(),
-        noteType: NoteType.Unknown,
-        tags: ISet(),
-        extraProps: const {},
-        fileFormat: NoteFileFormat.OrgMode,
-        propsList: IList(),
-        serializerSettings:
-            NoteSerializationSettings.fromConfig(parentFolder.config),
-        created: null,
-        modified: null,
-      );
-      return note;
+    var fileBytes = await io.File(filePath).readAsBytes();
+    String contentString;
+    if (FolderEncryptionService.isEncryptedBytes(fileBytes)) {
+      if (!parentFolder.isUnlocked) {
+        throw FolderLockedException(parentFolder.folderPath);
+      }
+      var decryptedBytes = await FolderEncryptionService.instance
+          .decryptForFolder(fileBytes, parentFolder);
+      contentString = utf8.decode(decryptedBytes);
+    } else {
+      contentString = utf8.decode(fileBytes);
     }
 
-    throw Exception("Unknown Note type. WTF");
+    var note = Note.build(
+      parent: parentFolder,
+      file: file,
+      title: null,
+      body: contentString,
+      noteType: NoteType.Unknown,
+      tags: ISet(),
+      extraProps: const {},
+      fileFormat: format,
+      propsList: IList(),
+      serializerSettings:
+          NoteSerializationSettings.fromConfig(parentFolder.config),
+      created: null,
+      modified: null,
+    );
+    return note;
   }
 }
 

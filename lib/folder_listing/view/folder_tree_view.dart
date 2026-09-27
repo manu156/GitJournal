@@ -115,10 +115,28 @@ class FolderTileState extends State<FolderTile> {
           width: 48,
           height: 48,
           alignment: Alignment.center,
-          child: Icon(
-            Icons.folder,
-            size: 36,
-            color: Theme.of(context).colorScheme.secondary,
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              Icon(
+                Icons.folder,
+                size: 36,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+              if (folder.isEncrypted)
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    folder.isUnlocked ? Icons.lock_open : Icons.lock,
+                    size: 14,
+                    color: folder.isUnlocked ? Colors.green : Colors.amber,
+                  ),
+                ),
+            ],
           ),
         ),
         title:

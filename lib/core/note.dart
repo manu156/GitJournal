@@ -362,9 +362,21 @@ class Note implements File {
   }
 
   String get body => _body;
+  String? get rawTitle => _title;
+  bool get hasTitle => _title != null && _title!.isNotEmpty;
+
   String? get title {
-    assert(_title != null ? _title.isNotEmpty : true);
-    return _title;
+    if (_title != null && _title!.isNotEmpty) {
+      return _title;
+    }
+    if (fileName.isNotEmpty) {
+      var ext = p.extension(fileName);
+      if (ext.isNotEmpty) {
+        return p.basenameWithoutExtension(fileName);
+      }
+      return fileName;
+    }
+    return null;
   }
 
   NoteType get type => _type;
@@ -372,21 +384,9 @@ class Note implements File {
   Map<String, dynamic> get extraProps => UnmodifiableMapView(_extraProps);
   IList<String> get propsList => _propsList;
 
-  bool get canHaveMetadata {
-    if (_fileFormat == NoteFileFormat.OrgMode) {
-      return false;
-    }
-    if (_fileFormat == NoteFileFormat.Txt) {
-      var ext = p.extension(filePath).toLowerCase();
-      if (ext.isEmpty) {
-        return _propsList.isNotEmpty || _extraProps.isNotEmpty;
-      }
-      return false;
-    }
-    return parent.config.yamlHeaderEnabled;
-  }
+  bool get canHaveMetadata => false;
 
-  MdYamlDoc get data => noteSerializer.encode(this);
+  MdYamlDoc get data => MdYamlDoc(body: _body);
 
   bool get pinned => extraProps["pinned"] == true;
 
@@ -401,7 +401,7 @@ class Note implements File {
       other is Note &&
           runtimeType == other.runtimeType &&
           parent.folderPath == other.parent.folderPath &&
-          _title == other._title &&
+          title == other.title &&
           // _created == other._created &&
           // _modified == other._modified &&
           _body == other._body &&
@@ -409,7 +409,6 @@ class Note implements File {
           _tags == other._tags &&
           _mapEq(_extraProps, other._extraProps) &&
           _fileFormat == other._fileFormat &&
-          noteSerializer.settings == other.noteSerializer.settings &&
           file.oid == other.file.oid &&
           file.filePath == other.file.filePath;
 

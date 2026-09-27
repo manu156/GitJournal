@@ -8,8 +8,6 @@
 import 'package:flutter/material.dart';
 import 'package:gitjournal/core/image.dart' as core;
 import 'package:gitjournal/core/image.dart';
-import 'package:gitjournal/core/markdown/md_yaml_doc_codec.dart';
-import 'package:gitjournal/core/markdown/md_yaml_note_serializer.dart';
 import 'package:gitjournal/core/note.dart';
 import 'package:gitjournal/editors/common.dart';
 import 'package:gitjournal/editors/editor_scroll_view.dart';
@@ -55,8 +53,6 @@ class OrgEditorState extends State<OrgEditor>
   late TextEditingController _textController;
   late UndoRedoStack _undoRedoStack;
 
-  final _serializer = MarkdownYAMLCodec();
-
   final _editorKey = GlobalKey();
   late ScrollController _scrollController;
 
@@ -66,7 +62,7 @@ class OrgEditorState extends State<OrgEditor>
     _note = widget.note;
     _noteModified = widget.noteModified;
     _textController = buildOrgTextController(
-      text: _serializer.encode(_note.data),
+      text: _note.body,
       highlightText: widget.highlightString,
       theme: widget.theme,
     );
@@ -127,13 +123,8 @@ class OrgEditorState extends State<OrgEditor>
 
   @override
   Note getNote() {
-    var doc = _serializer.decode(_textController.text);
-    return NoteSerializer.decodeNote(
-      data: doc,
-      parent: _note.parent,
-      file: _note.file,
-      settings: _note.noteSerializer.settings,
-      fileFormat: _note.fileFormat,
+    return _note.copyWith(
+      body: _textController.text,
     );
   }
 

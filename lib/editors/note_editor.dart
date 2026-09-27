@@ -133,6 +133,7 @@ class NoteEditorState extends State<NoteEditor>
   late EditorType _editorType;
   MdYamlDoc _originalNoteData = MdYamlDoc();
   GitHash? _originalNoteOid;
+  Note? _lastSavedNote;
 
   final _rawEditorKey = GlobalKey<RawEditorState>();
   final _markdownEditorKey = GlobalKey<MarkdownEditorState>();
@@ -194,6 +195,7 @@ class NoteEditorState extends State<NoteEditor>
       _originalNoteOid = existingNote.oid;
       _note = existingNote.resetOid();
       _originalNoteData = _note.data;
+      _lastSavedNote = existingNote;
 
       _isNewNote = false;
     }
@@ -240,7 +242,8 @@ class NoteEditorState extends State<NoteEditor>
       var repo = context.read<GitJournalRepo>();
       () async {
         try {
-          await repo.saveNoteToDisk(note);
+          var savedNote = await repo.saveNoteToDisk(note);
+          _lastSavedNote = savedNote;
         } catch (ex) {
           Log.e("Failed to save note", ex: ex);
         }
@@ -481,30 +484,14 @@ class NoteEditorState extends State<NoteEditor>
 
   bool _noteModified(Note note) {
     if (_isNewNote) {
-      return note.title != null || note.body.isNotEmpty;
+      return (note.hasTitle &&
+              note.title != p.basenameWithoutExtension(note.fileName)) ||
+          note.body.trim().isNotEmpty;
     }
 
-    if (note.data != _originalNoteData) {
-      final modifiedKey = note.noteSerializer.settings.modifiedKey;
-
-      var newSimplified = note.data.copyWith(
-        props: note.data.props.remove(modifiedKey),
-        body: note.body.trim(),
-      );
-      var originalSimplified = _originalNoteData.copyWith(
-        props: _originalNoteData.props.remove(modifiedKey),
-        body: _originalNoteData.body.trim(),
-      );
-
-      bool hasBeenModified = newSimplified != originalSimplified;
-      if (hasBeenModified) {
-        Log.d("Note modified");
-        // Log.d("Original: $originalSimplified");
-        // Log.d("New: $newSimplified");
-        return true;
-      }
-    }
-    return false;
+    var original = _lastSavedNote ?? widget.existingNote!;
+    return note.body.trim() != original.body.trim() ||
+        note.title != original.title;
   }
 
   // Returns bool indicating if the note was successfully saved
@@ -536,12 +523,32 @@ class NoteEditorState extends State<NoteEditor>
           });
         }
         await repo.addNote(note);
+        _lastSavedNote = note;
       } else {
-        var originalNote = widget.existingNote!;
+        var originalNote = _lastSavedNote ?? widget.existingNote!;
+        if (note.title != originalNote.title &&
+            note.title != null &&
+            note.title!.isNotEmpty) {
+          var ext = p.extension(originalNote.fileName);
+          var newFileName =
+              ext.isNotEmpty ? "${note.title}$ext" : note.title!;
+          if (newFileName != originalNote.fileName) {
+            try {
+              originalNote = await repo.renameNote(originalNote, newFileName);
+              note = note.copyWith(
+                parent: originalNote.parent,
+                file: originalNote.file,
+              );
+            } catch (e) {
+              Log.e("Failed to rename note on title change", ex: e);
+            }
+          }
+        }
         var modifiedNote = await repo.updateNote(originalNote, note);
         if (!mounted) return false;
         setState(() {
           _note = modifiedNote;
+          _lastSavedNote = modifiedNote;
         });
       }
     } catch (e, stackTrace) {

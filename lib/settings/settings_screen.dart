@@ -208,7 +208,7 @@ class _SettingsSearchBar extends StatelessWidget {
 }
 
 class SettingsTile extends StatelessWidget {
-  final IconData iconData;
+  final dynamic iconData;
   final String title;
   final String? subtitle;
   final Func0<void>? onTap;
@@ -230,9 +230,14 @@ class SettingsTile extends StatelessWidget {
       color: listTileTheme.textColor,
     );
 
-    var icon = iconData is FontAwesomeIcons
-        ? Icon(iconData, color: textStyle.color)
-        : FaIcon(iconData, color: textStyle.color);
+    Widget icon;
+    if (iconData is FaIconData) {
+      icon = FaIcon(iconData as FaIconData, color: textStyle.color);
+    } else if (iconData is IconData) {
+      icon = Icon(iconData as IconData, color: textStyle.color);
+    } else {
+      icon = const SizedBox();
+    }
 
     return ListTile(
       leading: icon,

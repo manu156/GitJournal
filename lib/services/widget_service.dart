@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:gitjournal/core/note.dart';
+import 'package:gitjournal/logger/logger.dart';
 import 'package:home_widget/home_widget.dart';
 
 class WidgetService {
@@ -17,7 +18,7 @@ class WidgetService {
       // Truncate body for preview
       var bodyPreview = note.body.trim();
       if (bodyPreview.length > 100) {
-        bodyPreview = bodyPreview.substring(0, 100) + '...';
+        bodyPreview = '${bodyPreview.substring(0, 100)}...';
       }
       
       return {
@@ -29,7 +30,7 @@ class WidgetService {
     }).toList();
 
     final jsonString = jsonEncode(notesData);
-    print("WidgetService: Saving $jsonString");
+    Log.d("WidgetService: Saving $jsonString");
 
     await HomeWidget.saveWidgetData<String>('notes_data', jsonString);
     await HomeWidget.updateWidget(

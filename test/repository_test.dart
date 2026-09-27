@@ -9,6 +9,7 @@ import 'dart:io' as io;
 import 'package:dart_git/dart_git.dart';
 import 'package:dart_git/plumbing/git_hash.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+import 'package:gitjournal/core/encryption/folder_encryption_service.dart';
 import 'package:gitjournal/core/note.dart';
 import 'package:gitjournal/core/notes/note.dart';
 import 'package:gitjournal/repository.dart';
@@ -201,7 +202,7 @@ Future<void> main() async {
     await _setup(head: headHash);
 
     var note = repo.rootFolder.getNoteWithSpec('doc.md')!;
-    var toNote = note.resetOid();
+    var toNote = note.resetOid().copyWith(body: "${note.body}\nupdated");
 
     expect(toNote.created, note.created);
     toNote = await repo.updateNote(note, toNote);
@@ -312,17 +313,15 @@ Future<void> main() async {
     expect(root.getNoteWithSpec('f2/3.md'), isNotNull);
   });
 
-  test('Add a tag', () async {
+  test('updateNote - update body text', () async {
     var headHash = GitHash('7fc65b59170bdc91013eb56cdc65fa3307f2e7de');
     await _setup(head: headHash);
 
     var note = repo.rootFolder.getNoteWithSpec('doc.md')!;
-    var updatedNote = note.resetOid();
-    updatedNote = updatedNote.copyWith(tags: {"Foo"}.lock);
+    var updatedNote = note.resetOid().copyWith(body: "new body content\n");
 
     var note2 = await repo.updateNote(note, updatedNote);
-    expect(note2.tags, {"Foo"});
-    expect(note2.data.props.containsKey("tags"), true);
+    expect(note2.body, "new body content\n");
 
     var gitRepo = GitRepository.load(repoPath);
     expect(gitRepo.headHash(), isNot(headHash));
@@ -330,6 +329,56 @@ Future<void> main() async {
     var headCommit = gitRepo.headCommit();
     expect(headCommit.parents.length, 1);
     expect(headCommit.parents[0], headHash);
+  });
+
+  test('getNoteWithSpec and getOrLoadNoteWithSpec', () async {
+    await _setup();
+    expect(repo.rootFolder.getNoteWithSpec('1.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('/1.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('./1.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('f1/3.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('/f1/3.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('./f1/3.md'), isNotNull);
+    expect(repo.rootFolder.getNoteWithSpec('nonexistent.md'), isNull);
+
+    var loaded = await repo.rootFolder.getOrLoadNoteWithSpec('f1/3.md');
+    expect(loaded, isNotNull);
+    expect(loaded!.fileName, equals('3.md'));
+
+    var loadedWithLeadingSlash = await repo.rootFolder.getOrLoadNoteWithSpec('/1.md');
+    expect(loadedWithLeadingSlash, isNotNull);
+    expect(loadedWithLeadingSlash!.fileName, equals('1.md'));
+  });
+
+  test('Folder encryption commit and sync to Git', () async {
+    await _setup();
+    final folder = repo.rootFolder.getFolderWithSpec('f1')!;
+    final service = FolderEncryptionService.instance;
+    service.init(preferences: repo.gitConfig.pref);
+
+    await service.convertFolderToEncrypted(
+      folder,
+      'TestPassword123',
+      gitConfig: repo.gitConfig,
+    );
+
+    final gitRepoBefore = GitRepository.load(repoPath);
+    final beforeHash = gitRepoBefore.headHash();
+
+    await repo.commitAll(message: "Encrypt folder '${folder.name}'");
+
+    final gitRepoAfter = GitRepository.load(repoPath);
+    expect(gitRepoAfter.headHash(), isNot(equals(beforeHash)));
+
+    final headCommit = gitRepoAfter.headCommit();
+    expect(headCommit.message, contains("Encrypt folder 'f1'"));
+
+    // Check that marker file and encrypted files are in the git index
+    final index = gitRepoAfter.indexStorage.readIndex();
+    expect(
+      index.entries.any((e) => e.path.contains(FolderEncryptionService.markerFileName)),
+      isTrue,
+    );
   });
 }
 

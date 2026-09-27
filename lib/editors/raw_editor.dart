@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:gitjournal/core/folder/notes_folder_fs.dart';
 import 'package:gitjournal/core/image.dart' as core;
 import 'package:gitjournal/core/image.dart';
-import 'package:gitjournal/core/markdown/md_yaml_doc_codec.dart';
-import 'package:gitjournal/core/markdown/md_yaml_note_serializer.dart';
 import 'package:gitjournal/core/note.dart';
 import 'package:gitjournal/core/views/inline_tags_view.dart';
 import 'package:gitjournal/editors/autocompletion_widget.dart';
@@ -61,8 +59,6 @@ class RawEditorState extends State<RawEditor>
   late TextEditingController _textController;
   late UndoRedoStack _undoRedoStack;
 
-  final _serializer = MarkdownYAMLCodec();
-
   final _editorKey = GlobalKey();
   late ScrollController _scrollController;
 
@@ -73,7 +69,7 @@ class RawEditorState extends State<RawEditor>
     _noteModified = widget.noteModified;
 
     _textController = buildController(
-      text: _serializer.encode(_note.data),
+      text: _note.body,
       highlightText: widget.highlightString,
       theme: widget.theme,
     );
@@ -134,13 +130,8 @@ class RawEditorState extends State<RawEditor>
 
   @override
   Note getNote() {
-    var doc = _serializer.decode(_textController.text);
-    return NoteSerializer.decodeNote(
-      data: doc,
-      parent: _note.parent,
-      file: _note.file,
-      settings: _note.noteSerializer.settings,
-      fileFormat: _note.fileFormat,
+    return _note.copyWith(
+      body: _textController.text,
     );
   }
 

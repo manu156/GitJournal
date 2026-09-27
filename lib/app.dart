@@ -13,6 +13,7 @@ import 'package:gitjournal/app_router.dart';
 import 'package:gitjournal/change_notifiers.dart';
 import 'package:gitjournal/editors/note_editor.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:gitjournal/core/encryption/folder_encryption_service.dart';
 import 'package:gitjournal/core/folder/notes_folder_config.dart';
 import 'package:gitjournal/core/link.dart';
 import 'package:gitjournal/core/views/note_links_view.dart';
@@ -32,12 +33,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:gitjournal/widgets/unlock_folder_dialog.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:universal_io/io.dart' show Directory, Platform;
 
 class JournalApp extends StatefulWidget {
   static Future<void> main(SharedPreferences pref) async {
+    FolderEncryptionService.instance.init(preferences: pref);
     await Log.init();
 
     Log.i("--------------------------------");
@@ -113,6 +116,7 @@ class JournalApp extends StatefulWidget {
 class JournalAppState extends State<JournalApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   String? _pendingShortcut;
+  String? _pendingNotePath;
 
   StreamSubscription? _intentDataStreamSubscription;
   var _sharedText = "";
@@ -169,28 +173,79 @@ class JournalAppState extends State<JournalApp> {
   }
 
   void _launchedFromWidget(Uri? uri) {
+    Log.d("Launched from widget: $uri");
     if (uri == null) return;
-    if (uri.scheme == 'gitjournal' && uri.path == '/note') {
+    if (uri.scheme == 'gitjournal' &&
+        (uri.host == 'note' || uri.path == '/note' || uri.path == 'note')) {
       var notePath = uri.queryParameters['path'];
-      if (notePath != null) {
+      if (notePath != null && notePath.isNotEmpty) {
         _openNote(notePath);
       }
     }
   }
 
-  void _openNote(String path) {
-    try {
-      var repo = widget.repoManager.currentRepo;
-      if (repo == null) return;
+  Future<void> _openNote(String path) async {
+    Log.i("Widget opening note requested: $path");
+    if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    if (path.startsWith('./')) {
+      path = path.substring(2);
+    }
 
-      var note = repo.rootFolder.getNoteWithSpec(path);
-      if (note != null) {
-        _navigatorKey.currentState!.push(MaterialPageRoute(
-          builder: (context) => NoteEditor.fromNote(note, note.parent),
-        ));
+    try {
+      if (_navigatorKey.currentState == null) {
+        Log.i("Widget navigatorKey not ready, queuing: $path");
+        _pendingNotePath = path;
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _afterBuild(context));
+        return;
       }
-    } catch (e) {
-      Log.e("Failed to open note from widget: $path", ex: e);
+
+      var repo = widget.repoManager.currentRepo;
+      if (repo == null) {
+        Log.i("Widget repo not ready, queuing: $path");
+        _pendingNotePath = path;
+        return;
+      }
+
+      var note = await repo.rootFolder.getOrLoadNoteWithSpec(path);
+      if (note != null) {
+        final targetNote = note;
+        Log.i("Widget opened note: ${targetNote.filePath}");
+        _navigatorKey.currentState!.push(MaterialPageRoute(
+          builder: (context) =>
+              NoteEditor.fromNote(targetNote, targetNote.parent),
+        ));
+      } else {
+        var folder = repo.rootFolder.getFolderWithSpec(p.dirname(path));
+        if (folder != null && folder.isEncrypted && !folder.isUnlocked) {
+          var navContext = _navigatorKey.currentContext;
+          if (navContext != null) {
+            var unlocked = await showDialog<bool>(
+              context: navContext,
+              builder: (context) => UnlockFolderDialog(folder: folder),
+            );
+            if (unlocked == true) {
+              await folder.load();
+              await folder.loadNotes();
+              await repo.reloadNotes();
+              final unlockedNote =
+                  await repo.rootFolder.getOrLoadNoteWithSpec(path);
+              if (unlockedNote != null) {
+                _navigatorKey.currentState!.push(MaterialPageRoute(
+                  builder: (context) =>
+                      NoteEditor.fromNote(unlockedNote, unlockedNote.parent),
+                ));
+                return;
+              }
+            }
+          }
+        }
+        Log.e("Widget failed: Note not found for path: $path");
+      }
+    } catch (e, stack) {
+      Log.e("Failed to open note from widget: $path", ex: e, stacktrace: stack);
     }
   }
 
@@ -199,6 +254,11 @@ class JournalAppState extends State<JournalApp> {
       var routeName = AppRoute.NewNotePrefix + _pendingShortcut!;
       _navigatorKey.currentState!.pushNamed(routeName);
       _pendingShortcut = null;
+    }
+    if (_pendingNotePath != null) {
+      var path = _pendingNotePath!;
+      _pendingNotePath = null;
+      _openNote(path);
     }
   }
 

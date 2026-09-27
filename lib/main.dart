@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:gitjournal/app.dart';
+import 'package:gitjournal/core/encryption/folder_encryption_service.dart';
 import 'package:gitjournal/error_reporting.dart';
 import 'package:gitjournal/settings/app_config.dart';
 import 'package:gitjournal/utils/bloc_observer.dart';
@@ -33,6 +34,7 @@ Future<void> _main() async {
 
   var pref = await SharedPreferences.getInstance();
   AppConfig.instance.load(pref);
+  FolderEncryptionService.instance.init(preferences: pref);
 
   FlutterError.onError = flutterOnErrorHandler;
 
