@@ -27,7 +27,7 @@ class NoteStorage {
   static String serialize(Note note) {
     // HACK: This isn't great as the raw editor still shows the note with metadata
     var data = note.data;
-    if (!note.canHaveMetadata) {
+    if (!note.canHaveMetadata && note.fileFormat == NoteFileFormat.Markdown) {
       // Fix issue 579: If there is no yaml header, the title would get lost unless it is stored somewhere.
       // Hence, store it in the file as a first heading.
       data = MdYamlDoc(
@@ -90,7 +90,9 @@ class NoteStorage {
     var filePath = file.fullFilePath;
     var format = NoteFileFormatInfo.fromFilePath(filePath);
 
-    if (format == NoteFileFormat.Markdown) {
+    var ext = p.extension(filePath).toLowerCase();
+    if (format == NoteFileFormat.Markdown ||
+        (format == NoteFileFormat.Txt && ext.isEmpty)) {
       var data = await mdYamlDocLoader.loadDoc(filePath);
       var settings = NoteSerializationSettings.fromConfig(parentFolder.config);
       var noteSerializer = NoteSerializer.fromConfig(settings);

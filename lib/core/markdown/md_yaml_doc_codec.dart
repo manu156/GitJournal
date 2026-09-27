@@ -15,6 +15,10 @@ import 'md_yaml_doc.dart';
 
 class MarkdownYAMLCodec {
   MdYamlDoc decode(String str) {
+    if (str.contains('\r\n')) {
+      str = str.replaceAll('\r\n', '\n');
+    }
+
     const startYamlStr = "---\n";
     const endYamlStr = "\n---\n";
     const emptyYamlHeaderStr = "---\n---";

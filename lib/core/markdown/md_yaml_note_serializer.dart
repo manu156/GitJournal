@@ -447,23 +447,25 @@ class NoteSerializer implements NoteSerializerInterface {
       settings.titleSettings = SettingsTitle.InYaml;
     } else {
       var startsWithH1 = false;
-      for (var line in LineSplitter.split(body)) {
-        if (line.trim().isEmpty) {
-          continue;
+      if (fileFormat == NoteFileFormat.Markdown) {
+        for (var line in LineSplitter.split(body)) {
+          if (line.trim().isEmpty) {
+            continue;
+          }
+          startsWithH1 = line.startsWith('#') && !line.startsWith('##');
+          break;
         }
-        startsWithH1 = line.startsWith('#') && !line.startsWith('##');
-        break;
-      }
 
-      if (startsWithH1) {
-        var titleStartIndex = body.indexOf('#');
-        var titleEndIndex = body.indexOf('\n', titleStartIndex);
-        if (titleEndIndex == -1 || titleEndIndex == body.length) {
-          title = body.substring(titleStartIndex + 1).trim();
-          body = "";
-        } else {
-          title = body.substring(titleStartIndex + 1, titleEndIndex).trim();
-          body = body.substring(titleEndIndex + 1).trim();
+        if (startsWithH1) {
+          var titleStartIndex = body.indexOf('#');
+          var titleEndIndex = body.indexOf('\n', titleStartIndex);
+          if (titleEndIndex == -1 || titleEndIndex == body.length) {
+            title = body.substring(titleStartIndex + 1).trim();
+            body = "";
+          } else {
+            title = body.substring(titleStartIndex + 1, titleEndIndex).trim();
+            body = body.substring(titleEndIndex + 1).trim();
+          }
         }
       }
     }
@@ -496,14 +498,33 @@ class NoteSerializer implements NoteSerializerInterface {
       for (var possibleKey in tagKeyOptions) {
         var tags = data.props[possibleKey];
         if (tags != null) {
+          String cleanTag(String t) {
+            var s = t.trim();
+            while (s.endsWith(';') || s.endsWith(',')) {
+              s = s.substring(0, s.length - 1).trim();
+            }
+            return s;
+          }
+
           if (tags is YamlList) {
-            _tags = tags.map((t) => t.toString()).toSet();
+            _tags = tags
+                .map((t) => cleanTag(t.toString()))
+                .where((t) => t.isNotEmpty)
+                .toSet();
           } else if (tags is List) {
-            _tags = tags.map((t) => t.toString()).toSet();
+            _tags = tags
+                .map((t) => cleanTag(t.toString()))
+                .where((t) => t.isNotEmpty)
+                .toSet();
           } else if (tags is String) {
             settings.tagsInString = true;
-            var allTags = tags.split(' ');
-            settings.tagsHaveHash = allTags.every((t) => t.startsWith('#'));
+            var allTags = tags
+                .split(RegExp(r'[\s,;]+'))
+                .map(cleanTag)
+                .where((t) => t.isNotEmpty)
+                .toList();
+            settings.tagsHaveHash =
+                allTags.isNotEmpty && allTags.every((t) => t.startsWith('#'));
             if (settings.tagsHaveHash) {
               allTags.removeWhere((e) => e.length <= 1);
               allTags = allTags.map((e) => e.substring(1)).toList();

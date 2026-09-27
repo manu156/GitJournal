@@ -181,7 +181,10 @@ class Note implements File {
       assert(!parent.fullFolderPath.endsWith(p.separator));
 
       var formatInfo = NoteFileFormatInfo(parent.config);
-      if (!formatInfo.isAllowedFileName(fileName)) {
+      if (p.extension(fileName).isEmpty &&
+          fileFormat == NoteFileFormat.Markdown) {
+        fileName += NoteFileFormatInfo.defaultExtension(fileFormat);
+      } else if (!formatInfo.isAllowedFileName(fileName)) {
         fileName += NoteFileFormatInfo.defaultExtension(fileFormat);
       }
 
@@ -370,8 +373,14 @@ class Note implements File {
   IList<String> get propsList => _propsList;
 
   bool get canHaveMetadata {
-    if (_fileFormat == NoteFileFormat.Txt ||
-        _fileFormat == NoteFileFormat.OrgMode) {
+    if (_fileFormat == NoteFileFormat.OrgMode) {
+      return false;
+    }
+    if (_fileFormat == NoteFileFormat.Txt) {
+      var ext = p.extension(filePath).toLowerCase();
+      if (ext.isEmpty) {
+        return _propsList.isNotEmpty || _extraProps.isNotEmpty;
+      }
       return false;
     }
     return parent.config.yamlHeaderEnabled;

@@ -55,9 +55,9 @@ class NotesFolderConfig extends ChangeNotifier with SettingsSharedPref {
 
   var emojify = false;
 
-  /// The extensions with the dot. Eg - '.md'
+  /// The extensions with the dot. Eg - '.md', and '' for no extension
   /// Case insensitive
-  var allowedFileExts = <String>{'.md', '.txt', '.org'};
+  var allowedFileExts = <String>{'.md', '.txt', '.org', ''};
 
   void load() {
     fileNameFormat =

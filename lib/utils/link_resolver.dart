@@ -63,6 +63,13 @@ class LinkResolver {
 
       for (var ext in folderConfig.allowedFileExts) {
         if (p.extension(fileNameLower) == ext) {
+          if (ext.isEmpty) {
+            if (fileName == term || fileNameLower == lowerCaseTerm) {
+              return note;
+            }
+            continue;
+          }
+
           var termEndsWithSameExt = lowerCaseTerm.endsWith(ext);
           if (termEndsWithSameExt) {
             if (fileName == term) {

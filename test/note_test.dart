@@ -404,4 +404,67 @@ Hello
     expect(n5.filePath, "folder/file.txt");
     expect(n5.fileFormat, NoteFileFormat.Txt);
   });
+
+  test('File without extension with YAML top header', () async {
+    var content = """---
+title: To do 6
+date: 20250128T143024
+tags: todo;
+---
+
+Buy groceries
+""";
+    var noteFullPath = p.join(repoPath, "todo");
+    await io.File(noteFullPath).writeAsString(content);
+
+    var parentFolder = NotesFolderFS.root(config, fileStorage);
+    var file = File.short("todo", repoPath, gitDt);
+    var note = await NoteStorage.load(file, parentFolder);
+
+    expect(note.fileFormat, NoteFileFormat.Txt);
+    expect(note.title, "To do 6");
+    expect(note.created, DateTime(2025, 1, 28, 14, 30, 24));
+    expect(note.tags.contains("todo"), true);
+    expect(note.tags.length, 1);
+    expect(note.body, "Buy groceries\n");
+    expect(note.canHaveMetadata, true);
+
+    // Save and verify it retains YAML header
+    note = note.resetOid();
+    await NoteStorage.save(note);
+    var savedContent = io.File(noteFullPath).readAsStringSync();
+    expect(savedContent.contains("title: To do 6"), true);
+    expect(savedContent.contains("Buy groceries"), true);
+  });
+
+  test('File without extension without YAML top header (optional header)', () async {
+    var content = "Just some text\nSecond line\n";
+    var noteFullPath = p.join(repoPath, "notes");
+    await io.File(noteFullPath).writeAsString(content);
+
+    var parentFolder = NotesFolderFS.root(config, fileStorage);
+    var file = File.short("notes", repoPath, gitDt);
+    var note = await NoteStorage.load(file, parentFolder);
+
+    expect(note.fileFormat, NoteFileFormat.Txt);
+    expect(note.title, null);
+    expect(note.tags.isEmpty, true);
+    expect(note.body, content);
+    expect(note.canHaveMetadata, false);
+
+    // Save and verify no YAML header or '# Title' is injected
+    note = note.resetOid();
+    await NoteStorage.save(note);
+    var savedContent = io.File(noteFullPath).readAsStringSync();
+    expect(savedContent, content);
+  });
+
+  test('Hidden files like .gitignore are not allowed file names', () {
+    var formatInfo = NoteFileFormatInfo(config);
+    expect(formatInfo.isAllowedFileName(".gitignore"), false);
+    expect(formatInfo.isAllowedFileName(".hidden_note"), false);
+    expect(formatInfo.isAllowedFileName("todo"), true);
+    expect(formatInfo.isAllowedFileName("note.md"), true);
+    expect(formatInfo.isAllowedFileName("note.txt"), true);
+  });
 }

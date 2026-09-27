@@ -11,7 +11,8 @@ enum EditorType { Markdown, Raw, Checklist, Journal, Org }
 bool editorSupported(NoteFileFormat format, EditorType type) {
   switch (type) {
     case EditorType.Markdown:
-      return format == NoteFileFormat.Markdown;
+      return format == NoteFileFormat.Markdown ||
+          format == NoteFileFormat.Txt;
 
     case EditorType.Journal:
       return true;

@@ -72,6 +72,10 @@ class NoteFileFormatInfo {
 
   bool isAllowedFileName(String filePath) {
     var noteFilePath = filePath.toLowerCase();
+    var baseName = p.basename(noteFilePath);
+    if (baseName.startsWith('.')) {
+      return false;
+    }
     for (var ext in config.allowedFileExts) {
       if (p.extension(noteFilePath) == ext) {
         return true;
